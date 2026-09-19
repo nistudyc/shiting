@@ -1,0 +1,23 @@
+{
+  "name": "shiting",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "check": "node --check server.mjs && node --check models.mjs && node --check public/app.js && node --check public/audio.js",
+    "desktop": "electron .",
+    "package:mac": "node package-app.mjs"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "3.8.1",
+    "@volcengine/openapi": "1.36.2",
+    "hls.js": "1.6.13"
+  },
+  "devDependencies": {
+    "@electron/packager": "20.3.0",
+    "electron": "44.4.2"
+  },
+  "main": "electron.cjs",
+  "version": "1.0.0",
+  "description": "Video-first macOS HLS player with local ONNX bilingual subtitles"
+}

@@ -1,0 +1,18 @@
+import {packager} from '@electron/packager';
+import {mkdir,copyFile,cp,readFile,writeFile} from 'node:fs/promises';
+import {execFileSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+const root=fileURLToPath(new URL('.',import.meta.url));
+process.chdir(root);
+const stage='.build/app';
+await mkdir(stage,{recursive:true});
+for(const file of ['electron.cjs','server.mjs','media.mjs','models.mjs','google.mjs','volcano.mjs'])await copyFile(file,`${stage}/${file}`);
+await cp('public',`${stage}/public`,{recursive:true});
+const pkg=JSON.parse(await readFile('package.json','utf8'));
+delete pkg.devDependencies;
+pkg.scripts={start:'node server.mjs'};
+await writeFile(`${stage}/package.json`,JSON.stringify(pkg,null,2));
+execFileSync('npm',['install','--omit=dev','--no-audit','--no-fund'],{cwd:stage,stdio:'inherit'});
+const result=await packager({dir:stage,out:'dist',name:'视听',platform:'darwin',arch:'arm64',electronVersion:'44.4.2',overwrite:true,asar:false,prune:true,appBundleId:'local.shiting.player',appVersion:pkg.version,ignore:[/^\/models(?:\/|$)/]});
+if(process.platform==='darwin')for(const output of result)execFileSync('codesign',['--force','--deep','--sign','-',`${output}/视听.app`],{stdio:'inherit'});
+console.log(result);

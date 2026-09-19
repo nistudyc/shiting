@@ -1,0 +1,196 @@
+import { CaptionView } from './captions.js';
+import { StableCaption } from './stable.js';
+const video = document.querySelector('#video');
+const status = document.querySelector('#status');
+const playStatus = document.querySelector('#playStatus');
+const toggle = document.querySelector('#toggle');
+const progress = document.querySelector('#progress');
+const mode = document.querySelector('#mode');
+const provider = document.querySelector('#provider');
+let hls;
+let initialized = false;
+let enabled = false;
+let preparing = false;
+let generation = 0;
+let context;
+let source;
+let collector;
+let silent;
+let inFlight = false;
+let request;
+let pending = [];
+let streamSession = 0;
+const stabilizers = new Map();
+const captions = new CaptionView(api, message, mode);
+
+function message(text, error = false) {
+  status.textContent = text;
+  status.parentElement.classList.toggle('error', error);
+}
+async function api(path, options = {}) {
+  const response = await fetch(path, { ...options, signal: options.signal ?? AbortSignal.timeout(120000) });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || `请求失败 ${response.status}`);
+  return data;
+}
+function resetAudio() {
+  generation++;
+  pending = [];
+  stabilizers.clear();
+  streamSession++;
+  request?.abort();
+  collector?.port.postMessage('reset');
+  captions.reset();
+}
+function stopCaptions() {
+  enabled = false;
+  captions.stop();
+  preparing = false;
+  resetAudio();
+  if (collector) { source.disconnect(collector); collector.disconnect(); collector.port.close(); collector = undefined; }
+  if (silent) { silent.disconnect(); silent = undefined; }
+  toggle.textContent = '开启字幕';
+  progress.hidden = true;
+  message('字幕已关闭；直播可继续播放。');
+}
+function queueAudio(chunk) {
+  if (!enabled || video.paused || video.seeking) return;
+  const key = streamSession + ':' + chunk.id;
+  const item = { ...chunk, key, time: new Date().toLocaleTimeString('zh-CN', { hour12: false }), received: performance.now() };
+  const existing = pending.findIndex(row => row.key === key);
+  if (existing >= 0) pending[existing] = item;
+  else pending.push(item);
+  if (pending.length > 3) { pending.shift(); message('处理速度暂时落后，已跳过旧音频以跟上直播。'); }
+  void drainAudio();
+}
+async function drainAudio() {
+  if (inFlight || !pending.length || !enabled) return;
+  inFlight = true;
+  const item = pending.shift();
+  const current = generation;
+  const controller = new AbortController(); request = controller;
+  const timeout = setTimeout(() => controller.abort(), 30000);
+  try {
+    const data = await api('/api/transcribe?provider=' + provider.value, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: item.audio.buffer, signal: controller.signal });
+    if (current !== generation || !enabled) return;
+    let stable = stabilizers.get(item.key);
+    if (!stable) { stable = new StableCaption(); stabilizers.set(item.key, stable); }
+    const committed = stable.update(data.en, item.final);
+    captions.english(committed, data.en, item);
+    if (item.final) stabilizers.delete(item.key);
+    while (stabilizers.size > 8) stabilizers.delete(stabilizers.keys().next().value);
+    const latency = (performance.now() - item.received) / 1000;
+    if (!captions.translationError) message('英文实时追加 / 中文结合上下文 · 识别 · 本次处理 ' + latency.toFixed(1) + ' 秒 · ' + ({google:'Google 翻译',volcano:'火山翻译',local:'本机 ONNX'}[provider.value]) + (latency > 2 ? ' · 正在追赶直播' : ''));
+  } catch (error) {
+    if (current === generation && enabled) { stopCaptions(); message('字幕已停止：' + error.message + '。可重新开启。', true); }
+  } finally { clearTimeout(timeout); inFlight = false; void drainAudio(); }
+}
+async function enableCaptions() {
+  if (!(await api('/api/source')).url) { settings.showModal(); document.querySelector('#sourceUrl').focus(); message('请先添加 HLS 播放地址。'); return; }
+  if (enabled || preparing) { stopCaptions(); return; }
+  if (provider.value !== 'local') {
+    const configuration = await api('/api/config');
+    if (!(provider.value === 'google' ? configuration.googleConfigured : configuration.volcanoConfigured)) { document.querySelector('#settingsDialog').showModal(); document.querySelector(provider.value === 'google' ? '#key' : '#volcanoAk').focus(); throw new Error('请在设置中填写所选云服务的密钥，或选择本机 ONNX。'); }
+  }
+  preparing = true;
+  const current = ++generation;
+  toggle.textContent = '取消准备';
+  try {
+    await api(`/api/prepare?provider=${provider.value}`, { method: 'POST' });
+    while (preparing && current === generation) {
+      const state = await api('/api/status');
+      message(state.message + (state.file ? ` ${state.file} · ${state.progress}%` : ''));
+      progress.hidden = state.phase !== 'loading';
+      progress.value = state.progress;
+      if (state.phase === 'error') throw new Error(state.message);
+      if (state.phase === 'ready') break;
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    if (!preparing || current !== generation) return;
+    if (!context) {
+      context = new AudioContext({ sampleRate: 16000 });
+      await context.audioWorklet.addModule('/audio.js');
+      source = context.createMediaElementSource(video);
+      source.connect(context.destination);
+    }
+    await context.resume();
+    if (!preparing || current !== generation) return;
+    if (context.sampleRate !== 16000) throw new Error('当前浏览器不支持 16kHz 音频，请用 Chrome 打开。');
+    collector = new AudioWorkletNode(context, 'audio-collector');
+    silent = context.createGain(); silent.gain.value = 0;
+    source.connect(collector); collector.connect(silent); silent.connect(context.destination);
+    collector.port.onmessage = event => queueAudio(event.data);
+    enabled = true; preparing = false; progress.hidden = true; captions.start(provider.value);
+    toggle.textContent = '关闭字幕';
+    message(video.paused ? '字幕已就绪，播放直播后开始识别。' : '字幕已开启，正在听取语音，字幕将持续更新…');
+  } catch (error) { if (current === generation) { stopCaptions(); message(error.message, true); } }
+}
+function connect() {
+  if (initialized) return;
+  initialized = true;
+  if (window.Hls?.isSupported()) {
+    hls = new window.Hls({ liveSyncDurationCount: 3, maxBufferLength: 20, backBufferLength: 20 });
+    hls.loadSource('/media/main.m3u8'); hls.attachMedia(video);
+    hls.on(window.Hls.Events.ERROR, (_event, data) => {
+      if (data.fatal) { playStatus.textContent = '连接失败，请检查网络后点击播放重试。'; hls.destroy(); initialized = false; }
+    });
+  } else if (video.canPlayType('application/vnd.apple.mpegurl')) video.src = '/media/main.m3u8';
+  else { initialized = false; throw new Error('当前浏览器不支持直播播放，请用新版 Chrome 或 Safari。'); }
+}
+document.querySelector('#play').addEventListener('click', async () => {
+  if (!(await api('/api/source')).url) { settings.showModal(); document.querySelector('#sourceUrl').focus(); return; }
+  try { playStatus.textContent = '正在连接直播…'; connect(); await context?.resume(); await video.play(); }
+  catch (error) { playStatus.textContent = `无法播放：${error.message}`; }
+});
+video.addEventListener('playing', () => { playStatus.textContent = '正在播放'; collector?.port.postMessage('reset'); });
+video.addEventListener('waiting', () => { playStatus.textContent = '正在缓冲…'; resetAudio(); });
+video.addEventListener('pause', () => { playStatus.textContent = '已暂停'; resetAudio(); });
+video.addEventListener('seeking', resetAudio);
+video.addEventListener('error', () => { playStatus.textContent = '视频播放失败，可点击播放直播重试。'; initialized = false; });
+toggle.addEventListener('click', () => { void enableCaptions().catch(error => message(error.message, true)); });
+mode.addEventListener('change', () => captions.show());
+provider.addEventListener('change', () => { if (enabled || preparing) stopCaptions(); document.querySelector('#googleFields').hidden = provider.value !== 'google'; document.querySelector('#volcanoFields').hidden = provider.value !== 'volcano'; });
+document.querySelector('#saveKey').addEventListener('click', async () => {
+  try { const input = document.querySelector('#key'); await api('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: input.value.trim() }) }); input.value = ''; message('Google 密钥已保存在本机服务内存中，重启服务即清除。'); }
+  catch (error) { message(error.message, true); }
+});
+document.querySelector('#fullscreen').addEventListener('click', async () => {
+  try { if (document.fullscreenElement) await document.exitFullscreen(); else await document.querySelector('#stage').requestFullscreen(); }
+  catch { message('此浏览器不支持页面全屏，请使用桌面 Chrome。', true); }
+});
+document.querySelector('#clear').addEventListener('click', () => { resetAudio(); captions.clear(); });
+document.querySelector('#export').addEventListener('click', () => captions.exportText());
+window.addEventListener('pagehide', () => { request?.abort(); captions.stop(); hls?.destroy(); void context?.close(); });
+
+const opacity = document.querySelector('#opacity');
+opacity.addEventListener('input', () => {
+  document.documentElement.style.setProperty('--caption-bg', 'rgba(0,0,0,' + (1 - Number(opacity.value) / 100) + ')');
+  document.querySelector('#opacityValue').textContent = opacity.value + '%';
+});
+
+const settings = document.querySelector('#settingsDialog');
+document.querySelector('#settingsOpen').addEventListener('click',()=>settings.showModal());
+document.querySelector('#settingsClose').addEventListener('click',()=>settings.close());
+document.querySelector('#exitFullscreen').addEventListener('click',()=>{void document.exitFullscreen();});
+document.querySelector('#theme').addEventListener('change',event=>{
+  const theme=event.target.value;
+  if(theme==='system')delete document.documentElement.dataset.theme;else document.documentElement.dataset.theme=theme;
+});
+document.querySelector('#saveVolcano').addEventListener('click',async()=>{
+  try {
+    const ak=document.querySelector('#volcanoAk'),sk=document.querySelector('#volcanoSk');
+    await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:'volcano',ak:ak.value.trim(),sk:sk.value.trim()})});
+    ak.value='';sk.value='';message('火山密钥已保存在当前服务内存，退出 App 后清除。');
+  } catch(error){message(error.message,true);}
+});
+document.querySelector('#loadSource').addEventListener('click',async()=>{
+  try {
+    const value=document.querySelector('#sourceUrl').value.trim();
+    const parsed=new URL(value);
+    await api('/api/source',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:value})});
+    stopCaptions();video.pause();hls?.destroy();initialized=false;
+    document.querySelector('#sourceName').textContent=parsed.hostname;
+    connect();await video.play();settings.close();message('新播放源已载入。需要字幕时点击开启字幕。');
+  }catch(error){message('载入失败：'+error.message,true);}
+});
+void api('/api/source').then(data=>{document.querySelector('#sourceUrl').value=data.url; if(data.url)document.querySelector('#sourceName').textContent=new URL(data.url).hostname;}).catch(error=>message(error.message,true));
