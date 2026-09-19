@@ -10,6 +10,7 @@ let port = Number(process.env.PLAYER_PORT ?? 8765);
 let origin = `http://127.0.0.1:${port}`;
 const assets = new Map([
   ['/', ['public/index.html', 'text/html; charset=utf-8']],
+  ['/appearance.js', ['public/appearance.js', 'text/javascript; charset=utf-8']],
   ['/app.js', ['public/app.js', 'text/javascript; charset=utf-8']],
   ['/captions.js', ['public/captions.js', 'text/javascript; charset=utf-8']],
   ['/stable.js', ['public/stable.js', 'text/javascript; charset=utf-8']],

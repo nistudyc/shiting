@@ -18,6 +18,6 @@
     "electron": "44.4.2"
   },
   "main": "electron.cjs",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Video-first macOS HLS player with local ONNX bilingual subtitles"
 }

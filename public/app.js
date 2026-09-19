@@ -11,11 +11,14 @@ let hls;
 let initialized = false;
 let enabled = false;
 let preparing = false;
+let preparationId = 0;
+let autoCaptions = true;
 let generation = 0;
 let context;
 let source;
 let collector;
 let silent;
+let recognitionFilter;
 let inFlight = false;
 let request;
 let pending = [];
@@ -46,8 +49,9 @@ function stopCaptions() {
   enabled = false;
   captions.stop();
   preparing = false;
+  preparationId++;
   resetAudio();
-  if (collector) { source.disconnect(collector); collector.disconnect(); collector.port.close(); collector = undefined; }
+  if (collector) { recognitionFilter.disconnect(collector); collector.disconnect(); collector.port.close(); collector = undefined; }
   if (silent) { silent.disconnect(); silent = undefined; }
   toggle.textContent = '开启字幕';
   progress.hidden = true;
@@ -87,17 +91,17 @@ async function drainAudio() {
 }
 async function enableCaptions() {
   if (!(await api('/api/source')).url) { settings.showModal(); document.querySelector('#sourceUrl').focus(); message('请先添加 HLS 播放地址。'); return; }
-  if (enabled || preparing) { stopCaptions(); return; }
+  if (enabled || preparing) return;
   if (provider.value !== 'local') {
     const configuration = await api('/api/config');
     if (!(provider.value === 'google' ? configuration.googleConfigured : configuration.volcanoConfigured)) { document.querySelector('#settingsDialog').showModal(); document.querySelector(provider.value === 'google' ? '#key' : '#volcanoAk').focus(); throw new Error('请在设置中填写所选云服务的密钥，或选择本机 ONNX。'); }
   }
   preparing = true;
-  const current = ++generation;
+  const current = ++preparationId;
   toggle.textContent = '取消准备';
   try {
     await api(`/api/prepare?provider=${provider.value}`, { method: 'POST' });
-    while (preparing && current === generation) {
+    while (preparing && current === preparationId) {
       const state = await api('/api/status');
       message(state.message + (state.file ? ` ${state.file} · ${state.progress}%` : ''));
       progress.hidden = state.phase !== 'loading';
@@ -106,24 +110,26 @@ async function enableCaptions() {
       if (state.phase === 'ready') break;
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
-    if (!preparing || current !== generation) return;
+    if (!preparing || current !== preparationId) return;
     if (!context) {
-      context = new AudioContext({ sampleRate: 16000 });
+      context = new AudioContext();
       await context.audioWorklet.addModule('/audio.js');
       source = context.createMediaElementSource(video);
       source.connect(context.destination);
+      recognitionFilter = context.createBiquadFilter();
+      recognitionFilter.type = 'lowpass'; recognitionFilter.frequency.value = 7200;
+      source.connect(recognitionFilter);
     }
     await context.resume();
-    if (!preparing || current !== generation) return;
-    if (context.sampleRate !== 16000) throw new Error('当前浏览器不支持 16kHz 音频，请用 Chrome 打开。');
+    if (!preparing || current !== preparationId) return;
     collector = new AudioWorkletNode(context, 'audio-collector');
     silent = context.createGain(); silent.gain.value = 0;
-    source.connect(collector); collector.connect(silent); silent.connect(context.destination);
+    recognitionFilter.connect(collector); collector.connect(silent); silent.connect(context.destination);
     collector.port.onmessage = event => queueAudio(event.data);
     enabled = true; preparing = false; progress.hidden = true; captions.start(provider.value);
     toggle.textContent = '关闭字幕';
-    message(video.paused ? '字幕已就绪，播放直播后开始识别。' : '字幕已开启，正在听取语音，字幕将持续更新…');
-  } catch (error) { if (current === generation) { stopCaptions(); message(error.message, true); } }
+    message(video.paused ? '字幕已就绪，播放直播后开始识别。' : '字幕已开启，正在识别视频音轨，字幕将持续更新…');
+  } catch (error) { if (current === preparationId) { stopCaptions(); message(error.message, true); } }
 }
 function connect() {
   if (initialized) return;
@@ -142,12 +148,18 @@ document.querySelector('#play').addEventListener('click', async () => {
   try { playStatus.textContent = '正在连接直播…'; connect(); await context?.resume(); await video.play(); }
   catch (error) { playStatus.textContent = `无法播放：${error.message}`; }
 });
-video.addEventListener('playing', () => { playStatus.textContent = '正在播放'; collector?.port.postMessage('reset'); });
+video.addEventListener('playing', () => {
+  playStatus.textContent = '正在播放'; collector?.port.postMessage('reset');
+  if (autoCaptions && !enabled && !preparing) void enableCaptions().catch(error => message(error.message, true));
+});
 video.addEventListener('waiting', () => { playStatus.textContent = '正在缓冲…'; resetAudio(); });
 video.addEventListener('pause', () => { playStatus.textContent = '已暂停'; resetAudio(); });
 video.addEventListener('seeking', resetAudio);
 video.addEventListener('error', () => { playStatus.textContent = '视频播放失败，可点击播放直播重试。'; initialized = false; });
-toggle.addEventListener('click', () => { void enableCaptions().catch(error => message(error.message, true)); });
+toggle.addEventListener('click', () => {
+  if (enabled || preparing) { autoCaptions = false; stopCaptions(); return; }
+  autoCaptions = true; void enableCaptions().catch(error => message(error.message, true));
+});
 mode.addEventListener('change', () => captions.show());
 provider.addEventListener('change', () => { if (enabled || preparing) stopCaptions(); document.querySelector('#googleFields').hidden = provider.value !== 'google'; document.querySelector('#volcanoFields').hidden = provider.value !== 'volcano'; });
 document.querySelector('#saveKey').addEventListener('click', async () => {
@@ -172,10 +184,6 @@ const settings = document.querySelector('#settingsDialog');
 document.querySelector('#settingsOpen').addEventListener('click',()=>settings.showModal());
 document.querySelector('#settingsClose').addEventListener('click',()=>settings.close());
 document.querySelector('#exitFullscreen').addEventListener('click',()=>{void document.exitFullscreen();});
-document.querySelector('#theme').addEventListener('change',event=>{
-  const theme=event.target.value;
-  if(theme==='system')delete document.documentElement.dataset.theme;else document.documentElement.dataset.theme=theme;
-});
 document.querySelector('#saveVolcano').addEventListener('click',async()=>{
   try {
     const ak=document.querySelector('#volcanoAk'),sk=document.querySelector('#volcanoSk');
@@ -188,9 +196,9 @@ document.querySelector('#loadSource').addEventListener('click',async()=>{
     const value=document.querySelector('#sourceUrl').value.trim();
     const parsed=new URL(value);
     await api('/api/source',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:value})});
-    stopCaptions();video.pause();hls?.destroy();initialized=false;
+    stopCaptions();autoCaptions=true;video.pause();hls?.destroy();initialized=false;
     document.querySelector('#sourceName').textContent=parsed.hostname;
-    connect();await video.play();settings.close();message('新播放源已载入。需要字幕时点击开启字幕。');
+    settings.close();connect();await video.play();
   }catch(error){message('载入失败：'+error.message,true);}
 });
 void api('/api/source').then(data=>{document.querySelector('#sourceUrl').value=data.url; if(data.url)document.querySelector('#sourceName').textContent=new URL(data.url).hostname;}).catch(error=>message(error.message,true));
