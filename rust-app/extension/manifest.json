@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "视听 · YouTube 双语字幕",
+  "version": "1.0.0",
+  "minimum_chrome_version": "116",
+  "description": "捕获当前 YouTube 标签页声音，使用视听桌面端生成英文与中文字幕。",
+  "permissions": ["tabCapture", "offscreen", "storage", "activeTab", "scripting"],
+  "host_permissions": ["http://127.0.0.1:48765/*"],
+  "background": {"service_worker": "background.js", "type": "module"},
+  "action": {"default_popup": "popup.html", "default_title": "视听双语字幕"}
+}
