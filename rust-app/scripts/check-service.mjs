@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+const origin = 'http://127.0.0.1:48765';
+const html = await (await fetch(origin)).text();
+const token = JSON.parse(html.match(/window.SHITING_TOKEN=("[^"]+")/)[1]);
+const headers = { Authorization: `Bearer ${token}` };
+assert.equal((await fetch(origin + '/api/status')).status, 401);
+assert.equal((await fetch(origin + '/api/status', { headers: { ...headers, Origin: 'https://example.com' } })).status, 403);
+const prepared = await fetch(origin + '/api/prepare?provider=local', { method: 'POST', headers });
+assert.equal(prepared.status, 200, await prepared.text());
+const bad = await fetch(origin + '/api/transcribe', { method: 'POST', headers: {...headers, 'Content-Type':'application/octet-stream'}, body: new Uint8Array(8) });
+assert.equal(bad.status, 400);
+const translated = await (await fetch(origin + '/api/translate?provider=local', { method: 'POST', headers: {...headers, 'Content-Type':'application/json'}, body: JSON.stringify({text:'Hello, welcome to our video. Today we will learn about science.'}) })).json();
+assert.match(translated.zh, /科学/);
+const samples = await readFile('/private/tmp/shiting-inference-speech.f32');
+const speech = await (await fetch(origin + '/api/transcribe', { method:'POST', headers:{...headers,'Content-Type':'application/octet-stream'},body:samples })).json();
+assert.match(speech.en, /welcome to our video/i);
+console.log(JSON.stringify({authorization:'passed', crossOrigin:'blocked', invalidAudio:'rejected', translation:translated.zh, recognition:speech.en}));

@@ -1,0 +1,55 @@
+[package]
+name = "shiting"
+version = "2.0.0"
+edition = "2024"
+description = "Local bilingual video captions"
+license = "MIT"
+
+[features]
+default = ["desktop"]
+desktop = ["dep:tauri", "dep:tauri-build"]
+
+[dependencies]
+anyhow = "1"
+axum = "0.8"
+bytes = "1"
+dirs = "6"
+futures-util = "0.3"
+hex = "0.4"
+hmac = "0.12"
+include_dir = "0.7"
+ort = { version = "=2.0.0-rc.9", default-features = false, features = ["load-dynamic", "ndarray"] }
+ort-sys = "=2.0.0-rc.9"
+ndarray = "0.16"
+regex = "1"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
+rustfft = "6"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tauri = { version = "2", optional = true }
+time = { version = "0.3", features = ["formatting", "macros"] }
+tokenizers = { version = "0.22", default-features = false, features = ["onig"] }
+tokio = { version = "1", features = ["rt-multi-thread", "net", "sync", "fs", "signal", "io-util", "time"] }
+url = "2"
+uuid = { version = "1", features = ["v4"] }
+
+[build-dependencies]
+tauri-build = { version = "2", optional = true }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
+
+[lints.rust]
+unsafe_code = "forbid"
+unused_must_use = "deny"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+

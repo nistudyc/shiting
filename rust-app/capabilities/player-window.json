@@ -1,0 +1,7 @@
+{
+  "identifier": "player-window",
+  "description": "Allow the local player page to enter and exit its own window fullscreen.",
+  "windows": ["main"],
+  "remote": { "urls": ["http://127.0.0.1:48765/"] },
+  "permissions": ["core:window:allow-set-fullscreen", "core:window:allow-is-fullscreen"]
+}
