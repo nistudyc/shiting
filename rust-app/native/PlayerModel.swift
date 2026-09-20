@@ -43,6 +43,17 @@ final class PlayerModel: NSObject, ObservableObject, WKNavigationDelegate {
     @Published var provider = "local"
     @Published var captionOpacity = 18.0
     @Published var appearance = "system"
+    @Published var glassTransparency = PlayerModel.savedGlassTransparency() {
+        didSet {
+            let value = glassTransparency.isFinite ? min(100, max(0, glassTransparency)) : 50
+            if value != glassTransparency { glassTransparency = value }
+            UserDefaults.standard.set(value, forKey: "glassTransparency")
+        }
+    }
+    private static func savedGlassTransparency() -> Double {
+        guard let value = UserDefaults.standard.object(forKey: "glassTransparency") as? Double, value.isFinite else { return 50 }
+        return min(100, max(0, value))
+    }
     @Published var captionBufferEnabled = UserDefaults.standard.bool(forKey: "captionBufferEnabled")
     @Published var captionBufferSeconds = [3, 4, 5].contains(UserDefaults.standard.integer(forKey: "captionBufferSeconds")) ? UserDefaults.standard.integer(forKey: "captionBufferSeconds") : 3
     @Published var historyOpen = false

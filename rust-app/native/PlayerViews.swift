@@ -96,7 +96,8 @@ struct NativePlayerView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSMenu.didEndTrackingNotification)) { _ in menuTracking = false; revealControls() }
         .frame(minWidth: 760, minHeight: 520)
         .preferredColorScheme(model.appearance == "dark" ? .dark : model.appearance == "light" ? .light : nil)
-        .sheet(isPresented: $model.settingsOpen) { PlayerSettingsView(model: model) }
+        .sheet(isPresented: $model.settingsOpen) { PlayerSettingsView(model: model).environment(\.glassTransparency, model.glassTransparency) }
+        .environment(\.glassTransparency, model.glassTransparency)
     }
 
     private var topControls: some View {
@@ -107,18 +108,18 @@ struct NativePlayerView: View {
                     .lineLimit(1)
                     .padding(.horizontal, 12)
                     .frame(height: 32)
-                    .glassEffect(.regular, in: .capsule)
+                    .appGlass(in: Capsule())
                 Spacer(minLength: 12)
                 Button { model.channelPickerOpen = true } label: {
                     Label("频道", systemImage: "list.bullet")
                 }
                 .popover(isPresented: $model.channelPickerOpen, arrowEdge: .bottom) {
-                    ChannelPickerView(model: model)
+                    ChannelPickerView(model: model).environment(\.glassTransparency, model.glassTransparency)
                 }
                 GlassIconButton(title: "设置", symbol: "gearshape") { model.settingsOpen = true }
                     .keyboardShortcut(",", modifiers: .command)
             }
-            .buttonStyle(.glass)
+            .buttonStyle(AppGlassButtonStyle())
             .controlSize(.regular)
         }
         .padding(.leading, 76)
@@ -145,12 +146,12 @@ struct NativePlayerView: View {
                 .font(.system(size: 12))
                 .padding(.horizontal, 12)
                 .frame(height: PlayerLayout.controlHeight)
-                .glassEffect(.regular, in: .capsule)
+                .appGlass(in: Capsule())
                 Spacer(minLength: 0)
                 Button { model.historyOpen.toggle() } label: {
                     Label(model.captionsPreparing ? "准备字幕" : "字幕", systemImage: model.captionsEnabled ? "captions.bubble.fill" : "captions.bubble")
                 }
-                .buttonStyle(.glass)
+                .buttonStyle(AppGlassButtonStyle())
                 .help(model.historyOpen ? "关闭字幕回看" : "打开字幕回看")
                 .accessibilityValue(model.historyOpen ? "回看侧栏已打开" : "回看侧栏已关闭")
                 .focused($controlsFocused)
@@ -191,7 +192,7 @@ private struct GlassIconButton: View {
         Button(action: action) {
             Image(systemName: symbol).frame(width: 16, height: 20)
         }
-        .buttonStyle(.glass)
+        .buttonStyle(AppGlassButtonStyle())
         .help(title)
         .accessibilityLabel(title)
     }
@@ -215,12 +216,12 @@ private struct WelcomeView: View {
                 Label("浏览频道", systemImage: "list.bullet.rectangle")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.glass)
+            .buttonStyle(AppGlassButtonStyle())
             .controlSize(.large)
         }
         .padding(32)
         .frame(width: 484)
-        .glassEffect(.regular, in: .rect(cornerRadius: 24))
+        .appGlass(in: RoundedRectangle(cornerRadius: 24))
     }
 }
 
@@ -235,7 +236,7 @@ private struct SourceEntryView: View {
                 .onSubmit(play)
                 .accessibilityLabel("播放地址")
             Button("播放", systemImage: "play.fill", action: play)
-                .buttonStyle(.glassProminent)
+                .buttonStyle(AppGlassButtonStyle(prominent: true))
                 .disabled(address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !model.isReady)
         }
         .controlSize(.large)
@@ -292,7 +293,7 @@ private struct ChannelListView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.vertical, 4)
                     }
-                    .buttonStyle(.glass)
+                    .buttonStyle(AppGlassButtonStyle())
                     .disabled(!channel.supported || !model.isReady)
                 }
                 }
@@ -321,11 +322,12 @@ private struct PlayerSettingsView: View {
                 Text("设置").font(.title2.weight(.semibold))
                 Spacer()
                 Button("完成") { model.settingsOpen = false }
-                    .buttonStyle(.glassProminent)
+                    .buttonStyle(AppGlassButtonStyle(prominent: true))
                     .keyboardShortcut(.defaultAction)
             }
             .padding(20)
             Form {
+                AppearanceSettingsView(model: model)
                 Section("播放来源") {
                     SourceEntryView(model: model)
                     ChannelListView(model: model).frame(height: 180)
@@ -371,7 +373,7 @@ private struct PlayerSettingsView: View {
                     if model.provider == "google" {
                         SecureField("Google API 密钥", text: $googleKey)
                         Button("保存密钥") { model.saveGoogle(googleKey); googleKey = "" }
-                            .buttonStyle(.glass).disabled(googleKey.isEmpty)
+                            .buttonStyle(AppGlassButtonStyle()).disabled(googleKey.isEmpty)
                     } else if model.provider == "volcano" {
                         SecureField("Access Key", text: $volcanoAK)
                         SecureField("Secret Key", text: $volcanoSK)
@@ -379,7 +381,7 @@ private struct PlayerSettingsView: View {
                             model.saveVolcano(ak: volcanoAK, sk: volcanoSK)
                             volcanoAK = ""; volcanoSK = ""
                         }
-                        .buttonStyle(.glass).disabled(volcanoAK.isEmpty || volcanoSK.isEmpty)
+                        .buttonStyle(AppGlassButtonStyle()).disabled(volcanoAK.isEmpty || volcanoSK.isEmpty)
                     }
                 }
                 Section("字幕记录") {
@@ -396,18 +398,19 @@ private struct PlayerSettingsView: View {
                             .textSelection(.enabled)
                         }
                         HStack {
-                            Button("导出全部记录", action: model.exportHistory).buttonStyle(.glass)
-                            Button("清空记录", role: .destructive, action: model.clearHistory).buttonStyle(.glass)
+                            Button("导出全部记录", action: model.exportHistory).buttonStyle(AppGlassButtonStyle())
+                            Button("清空记录", role: .destructive, action: model.clearHistory).buttonStyle(AppGlassButtonStyle())
                         }
                     }
                 }
                 UpdateSettingsView()
                 Section("浏览器连接") {
                     Button("复制配对码", systemImage: "doc.on.doc", action: model.copyPairing)
-                        .buttonStyle(.glass)
+                        .buttonStyle(AppGlassButtonStyle())
                 }
             }
             .formStyle(.grouped)
+            .scrollContentBackground(.hidden)
             .onChange(of: model.appearance) { model.applySettings() }
             .onChange(of: model.captionMode) { model.applySettings() }
             .onChange(of: model.captionOpacity) { model.applySettings() }
@@ -416,5 +419,7 @@ private struct PlayerSettingsView: View {
             .onChange(of: model.captionBufferSeconds) { model.applySettings() }
         }
         .frame(width: 640, height: 640)
+        .appGlass(in: RoundedRectangle(cornerRadius: 20))
+        .presentationBackground(.clear)
     }
 }

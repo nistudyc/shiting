@@ -61,7 +61,7 @@ struct CaptionHistorySidebar: View {
                 .help("关闭侧栏，继续识别字幕")
                 .accessibilityLabel("关闭字幕回看侧栏")
             }
-            .buttonStyle(.glass)
+            .buttonStyle(AppGlassButtonStyle())
             if displayed.isEmpty {
                 ContentUnavailableView("暂无字幕记录", systemImage: "captions.bubble", description: Text("开启字幕后，已播放的原文与译文会显示在这里。"))
             } else {
@@ -113,7 +113,7 @@ struct CaptionHistorySidebar: View {
                     Label(hasUpdates ? "有字幕更新 · 回到最新" : "回到最新", systemImage: "arrow.down")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.glassProminent)
+                .buttonStyle(AppGlassButtonStyle(prominent: true))
             }
             if historyTrimmed {
                 Text("较早记录已清理，已保留当前可用的最早位置。")
@@ -123,7 +123,7 @@ struct CaptionHistorySidebar: View {
                 .font(.system(size: 11)).foregroundStyle(.secondary)
         }
         .padding(16)
-        .glassEffect(.regular, in: .rect(cornerRadius: 16))
+        .appGlass(in: RoundedRectangle(cornerRadius: 16))
         .onAppear { showLatest() }
         .onChange(of: model.history) { refreshHistory() }
         .onChange(of: model.historyOpen) { _, open in
