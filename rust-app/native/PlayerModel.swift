@@ -9,11 +9,13 @@ struct Channel: Decodable, Identifiable {
     var id: String { url }
     var supported: Bool { URL(string: url)?.path.hasSuffix(".mpd") != true }
 }
-struct CaptionEntry: Decodable, Identifiable {
+struct CaptionEntry: Decodable, Identifiable, Equatable {
     let id: String
     let time: String
     let en: String
     let zh: String
+    let sourceName: String?
+    let session: Int?
 }
 private struct PlayerSnapshot: Decodable {
     let sourceURL: String
@@ -41,6 +43,9 @@ final class PlayerModel: NSObject, ObservableObject, WKNavigationDelegate {
     @Published var provider = "local"
     @Published var captionOpacity = 18.0
     @Published var appearance = "system"
+    @Published var captionBufferEnabled = UserDefaults.standard.bool(forKey: "captionBufferEnabled")
+    @Published var captionBufferSeconds = [3, 4, 5].contains(UserDefaults.standard.integer(forKey: "captionBufferSeconds")) ? UserDefaults.standard.integer(forKey: "captionBufferSeconds") : 3
+    @Published var historyOpen = false
     @Published var settingsOpen = false
     @Published var channelPickerOpen = false
     @Published var isReady = false
@@ -124,7 +129,7 @@ final class PlayerModel: NSObject, ObservableObject, WKNavigationDelegate {
                 playing = state.playing
                 captionsEnabled = state.captionsEnabled
                 captionsPreparing = state.captionsPreparing
-                history = state.history
+                history = Array(state.history.prefix(120))
                 error = state.error ? state.captionStatus : nil
                 if !isReady { isReady = true; applySettings() }
             case "channels":
@@ -171,7 +176,9 @@ final class PlayerModel: NSObject, ObservableObject, WKNavigationDelegate {
     func toggleCaptions() { command(["type": "captions"]) }
     func toggleFullscreen() { webView.window?.toggleFullScreen(nil) }
     func applySettings() {
-        command(["type": "settings", "mode": captionMode, "provider": provider, "opacity": captionOpacity, "appearance": appearance])
+        UserDefaults.standard.set(captionBufferEnabled, forKey: "captionBufferEnabled")
+        UserDefaults.standard.set(captionBufferSeconds, forKey: "captionBufferSeconds")
+        command(["type": "settings", "mode": captionMode, "provider": provider, "opacity": captionOpacity, "appearance": appearance, "captionBufferEnabled": captionBufferEnabled, "captionBufferSeconds": captionBufferSeconds])
     }
     func saveGoogle(_ key: String) { command(["type": "google", "key": key.trimmingCharacters(in: .whitespacesAndNewlines)]) }
     func saveVolcano(ak: String, sk: String) { command(["type": "volcano", "ak": ak, "sk": sk]) }

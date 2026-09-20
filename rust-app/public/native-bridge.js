@@ -1,4 +1,4 @@
-export function setupNativeBridge({ video, captions, loadSource, api, notify }) {
+export function setupNativeBridge({ video, captions, loadSource, api, notify, configureBuffer, bufferState }) {
   if (!window.SHITING_NATIVE) return;
   document.documentElement.classList.add('native-shell');
   video.controls = false;
@@ -15,6 +15,7 @@ export function setupNativeBridge({ video, captions, loadSource, api, notify }) 
         case 'play': if (video.paused) click('#play'); else video.pause(); break;
         case 'captions': click('#toggle'); break;
         case 'settings':
+          configureBuffer(command);
           set('#mode', command.mode); set('#opacity',command.opacity,'input'); set('#theme',command.appearance);
           if (document.querySelector('#provider').value !== command.provider) set('#provider',command.provider);
           break;
@@ -29,11 +30,11 @@ export function setupNativeBridge({ video, captions, loadSource, api, notify }) 
   let last = '';
   const publish = () => {
     const toggle = document.querySelector('#toggle').textContent;
-    const state = {type:'state',sourceURL:document.querySelector('#sourceUrl').value,sourceName:document.querySelector('#sourceName').textContent,
+    const state = {type:'state',...bufferState(),sourceURL:document.querySelector('#sourceUrl').value,sourceName:document.querySelector('#sourceName').textContent,
       playStatus:document.querySelector('#playStatus').textContent,captionStatus:document.querySelector('#status').textContent,
       playing:!video.paused,captionsEnabled:toggle==='关闭字幕',captionsPreparing:toggle==='取消准备',
       error:document.querySelector('#status').parentElement.classList.contains('error'),
-      history:captions.entries.map(row=>({id:row.key,time:row.time,en:row.en,zh:row.zh}))};
+      history:captions.visibleEntries().map(row=>({id:row.key,time:row.time,en:row.en,zh:row.zh,sourceName:row.sourceName,session:row.session}))};
     const serialized=JSON.stringify(state); if(serialized!==last){last=serialized;send(state);}
   };
   const timer=setInterval(publish,250);

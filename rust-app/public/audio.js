@@ -5,7 +5,7 @@ class AudioCollector extends AudioWorkletProcessor {
     this.ratio = sampleRate / 16000;
     this.chunks = new SpeechChunks(chunk => this.port.postMessage(chunk, [chunk.audio.buffer]));
     this.reset();
-    this.port.onmessage = () => this.reset();
+    this.port.onmessage = event => { if (event.data === 'flush') this.chunks.flush(true); else this.reset(); };
   }
   reset() { this.chunks.reset(); this.resampleSum=0; this.remaining=this.ratio; }
   downsample(channels) {

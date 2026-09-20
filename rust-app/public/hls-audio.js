@@ -23,10 +23,11 @@ export class HlsAudio {
     video.addEventListener('seeked', this.seek);
   }
 
-  start(onSamples) {
+  start(onSamples, {ahead = 0} = {}) {
     if (this.destroyed) return;
     this.stop();
     this.onSamples = onSamples;
+    this.ahead = ahead;
     this.cursor = this.video.currentTime;
     this.timer = setInterval(() => this.tick(), 100);
   }
@@ -53,7 +54,7 @@ export class HlsAudio {
     const joined = new Uint8Array(size);
     joined.set(this.init);
     joined.set(bytes, this.init.length);
-    this.pending.push({ bytes: joined, start, key: `${data.frag?.cc}:${data.frag?.sn}:${data.part?.index ?? ''}` });
+    this.pending.push({ bytes: joined, start, cc:data.frag?.cc, key: `${data.frag?.cc}:${data.frag?.sn}:${data.part?.index ?? ''}` });
     void this.drain();
   }
 
@@ -64,6 +65,7 @@ export class HlsAudio {
     try {
       while (this.pending.length && !this.destroyed) {
         const item = this.pending.shift();
+        this.decodingItem = item;
         try {
           const Context = globalThis.OfflineAudioContext || globalThis.window?.webkitOfflineAudioContext;
           const decoded = await new Context(1, 1, RATE).decodeAudioData(item.bytes.buffer);
@@ -78,31 +80,44 @@ export class HlsAudio {
           const end = start + samples.length / RATE;
           this.ends.set(item.key, end);
           while (this.ends.size > 60) this.ends.delete(this.ends.keys().next().value);
-          this.buffers.push({ start, end, samples });
+          this.buffers.push({ start, end, samples, cc:item.cc });
           this.buffers.sort((a, b) => a.start - b.start);
           let duration = this.buffers.reduce((n, buffer) => n + buffer.samples.length / RATE, 0);
           while (this.buffers.length > 30 || duration > 60) duration -= this.buffers.shift().samples.length / RATE;
         } catch (error) {
+          if (epoch !== this.epoch) return;
           if (!this.destroyed && epoch === this.epoch) this.onError?.(error);
         }
       }
     } finally {
-      this.decoding = false;
+      this.decoding = false; this.decodingItem = undefined;
+      if (!this.destroyed && this.pending.length) void this.drain();
     }
   }
 
-  tick() {
-    if (!this.onSamples || this.video.paused || this.video.seeking || this.video.readyState < 3) return;
+  resetTimeline(cc) {
+    this.continuity = cc;
+    this.epoch++;
+    this.pending = this.pending.filter(item => item.cc === cc);
+    if (this.decodingItem?.cc === cc) this.pending.unshift(this.decodingItem);
+    this.buffers = this.buffers.filter(item => item.cc === cc);
+    this.ends.clear();
+    this.cursor = this.video.currentTime;
+  }
+
+  tick(endOfMedia = false) {
+    if (!this.onSamples || (!endOfMedia && !this.ahead && this.video.paused) || this.video.seeking || this.video.readyState < (this.ahead ? 2 : 3)) return;
     const time = this.video.currentTime;
     if (!Number.isFinite(time)) return;
-    if (time < this.cursor - 0.2) this.cursor = time;
+    if (!this.ahead && time < this.cursor - 0.2) this.cursor = time;
     this.cursor = Math.max(this.cursor, time - 0.15);
-    const limit = time + 0.1;
+    const limit = time + (this.ahead || 0.1);
     for (const buffer of this.buffers) {
+      if (this.continuity !== undefined && buffer.cc !== this.continuity) continue;
       const from = Math.max(0, Math.ceil((this.cursor - buffer.start) * RATE - 1e-6));
       const to = Math.min(buffer.samples.length, Math.floor((limit - buffer.start) * RATE + 1e-6));
       if (to > from) {
-        this.onSamples(buffer.samples.slice(from, to));
+        this.onSamples(buffer.samples.slice(from, to), {start:buffer.start + from / RATE, end:buffer.start + to / RATE});
         this.cursor = buffer.start + to / RATE;
       }
     }

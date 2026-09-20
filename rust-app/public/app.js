@@ -1,3 +1,6 @@
+import { createSourceLoader } from './source-loader.js';
+import { acceptsAudio, timelyAudio } from './audio-scheduling.js';
+import { PlaybackBuffer } from './playback-buffer.js';
 import { setupNativeBridge } from './native-bridge.js';
 import { HlsAudio } from './hls-audio.js';
 import { SpeechChunks } from './speech-chunks.js';
@@ -11,6 +14,23 @@ const progress = document.querySelector('#progress');
 const mode = document.querySelector('#mode');
 const provider = document.querySelector('#provider');
 let hls;
+let playbackBuffer;
+let bufferSettings = {enabled:false, seconds:3};
+let sourceSession = 0;
+function configureBuffer(command) {
+  const seconds = Number(command.captionBufferSeconds);
+  bufferSettings = {enabled:command.captionBufferEnabled === true, seconds:[3,4,5].includes(seconds) ? seconds : 3};
+  if (initialized && (Boolean(playbackBuffer?.seconds) !== bufferSettings.enabled || (bufferSettings.enabled && playbackBuffer?.seconds !== bufferSettings.seconds))) message('字幕缓冲设置将在下次载入来源时生效。');
+}
+function bufferState() { return {captionBufferEnabled:bufferSettings.enabled, captionBufferSeconds:bufferSettings.seconds, captionBufferActive:Boolean(playbackBuffer?.seconds), captionBufferPreparing:Boolean(playbackBuffer?.preparing)}; }
+async function beginPlayback() {
+  if (playbackBuffer?.seconds) {
+    if (playbackBuffer.live && playbackBuffer.cancelled && Number.isFinite(hls?.liveSyncPosition)) video.currentTime = hls.liveSyncPosition;
+    if (autoCaptions && !enabled && !preparing) void enableCaptions().catch(error => message(error.message, true));
+    await playbackBuffer.play({rebuild:playbackBuffer.needsRebuild || (playbackBuffer.live && playbackBuffer.cancelled)});
+  } else await video.play();
+}
+
 let hlsAudio;
 let nativeChunks;
 const nativeAudio = /AppleWebKit/.test(navigator.userAgent) && !/Chrome|Chromium|Edg/.test(navigator.userAgent);
@@ -67,9 +87,9 @@ function stopCaptions() {
   message('字幕已关闭；直播可继续播放。');
 }
 function queueAudio(chunk) {
-  if (!enabled || video.paused || video.seeking) return;
+  if (!acceptsAudio(chunk, {enabled, buffered:Boolean(playbackBuffer?.seconds), paused:video.paused, seeking:video.seeking})) return;
   const key = streamSession + ':' + chunk.id;
-  const item = { ...chunk, key, time: new Date().toLocaleTimeString('zh-CN', { hour12: false }), received: performance.now() };
+  const item = { ...chunk, key, session:sourceSession, sourceName:document.querySelector('#sourceName').textContent, time: playbackBuffer?.seconds && Number.isFinite(chunk.start) ? [Math.floor(chunk.start / 3600), Math.floor(chunk.start / 60) % 60, Math.floor(chunk.start) % 60].map(value => String(value).padStart(2, '0')).join(':') : new Date().toLocaleTimeString('zh-CN', { hour12: false }), received: performance.now() };
   const existing = pending.findIndex(row => row.key === key);
   if (existing >= 0) pending[existing] = item;
   else pending.push(item);
@@ -79,6 +99,8 @@ function queueAudio(chunk) {
 async function drainAudio() {
   if (inFlight || !pending.length || !enabled) return;
   inFlight = true;
+  if (playbackBuffer?.seconds) pending = pending.filter(row => timelyAudio(row, video.currentTime));
+  if (!pending.length) { inFlight = false; return; }
   const item = pending.shift();
   const current = generation;
   const controller = new AbortController(); request = controller;
@@ -120,10 +142,10 @@ async function enableCaptions() {
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
     if (!preparing || current !== preparationId) return;
-    if (nativeAudio) {
+    if (nativeAudio || playbackBuffer?.seconds) {
       if (!hlsAudio) throw new Error('当前播放方式无法读取字幕音轨，请重新播放 HLS 频道。');
-      nativeChunks = new SpeechChunks(queueAudio);
-      hlsAudio.start(pcm => nativeChunks?.push(pcm));
+      nativeChunks = new SpeechChunks(queueAudio, playbackBuffer?.seconds ? {maxSeconds:1.5} : {});
+      hlsAudio.start((pcm, timing) => nativeChunks?.push(pcm, timing), {ahead:playbackBuffer?.seconds || 0});
     } else {
       if (!context) {
         context = new AudioContext();
@@ -150,30 +172,48 @@ function connect() {
   if (initialized) return;
   initialized = true;
   if (window.Hls?.isSupported()) {
-    const player = new window.Hls({ liveSyncDurationCount: 3, maxBufferLength: 20, backBufferLength: 20 });
+    playbackBuffer = new PlaybackBuffer(video, bufferSettings.enabled ? bufferSettings.seconds : 0, text => { playStatus.textContent = text; });
+    captions.setClock(playbackBuffer.seconds ? () => video.currentTime : undefined);
+    const player = new window.Hls({ liveSyncDurationCount: 3, maxLiveSyncPlaybackRate:1, maxBufferLength: 20, backBufferLength: 20 });
+    if (playbackBuffer.seconds) player.on(window.Hls.Events.LEVEL_LOADED, (_event, data) => {
+      playbackBuffer.live = data.details.live;
+    });
+    if (nativeAudio || playbackBuffer.seconds) {
+      let continuity;
+      player.on(window.Hls.Events.FRAG_CHANGED, (_event, data) => {
+        if (continuity !== undefined && continuity !== data.frag.cc) {
+          resetAudio();
+          hlsAudio?.resetTimeline(data.frag.cc);
+        }
+        if (hlsAudio) hlsAudio.continuity = data.frag.cc;
+        continuity = data.frag.cc;
+      });
+    }
     hls = player;
-    if (nativeAudio) hlsAudio = new HlsAudio(player, video, error => { if (hls !== player) return; stopCaptions(); message('字幕音轨读取失败：' + error.message, true); });
+    if (nativeAudio || playbackBuffer.seconds) hlsAudio = new HlsAudio(player, video, error => { if (hls !== player) return; stopCaptions(); message('字幕音轨读取失败：' + error.message, true); });
     player.loadSource('/media/main.m3u8'); player.attachMedia(video);
     player.on(window.Hls.Events.ERROR, (_event, data) => {
       if (hls !== player) return;
-      if (data.fatal) { const detail = `${data.type} / ${data.details}${data.reason ? ' / ' + data.reason.replace(/https?:\/\/\S+/g, '[地址]').slice(0,200) : ''}${data.response?.code ? ' / HTTP ' + data.response.code : ''}`; stopCaptions(); playStatus.textContent = '播放失败：' + detail + '，可点击播放重试。'; message('播放已停止，字幕已关闭。', true); hlsAudio?.destroy(); hlsAudio = undefined; player.destroy(); hls = undefined; initialized = false; }
+      if (data.fatal) { playbackBuffer?.destroy(); const detail = `${data.type} / ${data.details}${data.reason ? ' / ' + data.reason.replace(/https?:\/\/\S+/g, '[地址]').slice(0,200) : ''}${data.response?.code ? ' / HTTP ' + data.response.code : ''}`; stopCaptions(); playStatus.textContent = '播放失败：' + detail + '，可点击播放重试。'; message('播放已停止，字幕已关闭。', true); hlsAudio?.destroy(); hlsAudio = undefined; player.destroy(); hls = undefined; initialized = false; }
     });
-  } else if (video.canPlayType('application/vnd.apple.mpegurl')) video.src = '/media/main.m3u8';
+  } else if (video.canPlayType('application/vnd.apple.mpegurl')) { playbackBuffer = undefined; captions.setClock(undefined); video.src = '/media/main.m3u8'; if (bufferSettings.enabled) message('当前后备播放路径不支持提前读取字幕音轨，使用默认播放。'); }
   else { initialized = false; throw new Error('当前浏览器不支持直播播放，请用新版 Chrome 或 Safari。'); }
 }
 document.querySelector('#play').addEventListener('click', async () => {
   if (!(await api('/api/source')).url) { settings.showModal(); document.querySelector('#sourceUrl').focus(); return; }
-  try { playStatus.textContent = '正在连接直播…'; connect(); await context?.resume(); await video.play(); }
+  try { playStatus.textContent = '正在连接直播…'; connect(); await context?.resume(); await beginPlayback(); }
   catch (error) { playStatus.textContent = `无法播放：${error.message}`; }
 });
 video.addEventListener('playing', () => {
   playStatus.textContent = '正在播放'; collector?.port.postMessage('reset');
   if (autoCaptions && !enabled && !preparing) void enableCaptions().catch(error => message(error.message, true));
 });
-video.addEventListener('waiting', () => { playStatus.textContent = '正在缓冲…'; resetAudio(); });
-video.addEventListener('pause', () => { playStatus.textContent = '已暂停'; resetAudio(); });
-video.addEventListener('seeking', resetAudio);
-video.addEventListener('error', () => { if (!video.error) return; const code = video.error?.code; stopCaptions(); hlsAudio?.destroy(); hlsAudio = undefined; hls?.destroy(); hls = undefined; playStatus.textContent = `视频播放失败${code ? '（媒体错误 ' + code + '）' : ''}，可点击播放重试。`; message('播放已停止，字幕已关闭。', true); initialized = false; });
+video.addEventListener('waiting', () => { playStatus.textContent = '正在缓冲…'; if (!playbackBuffer?.seconds) resetAudio(); });
+video.addEventListener('pause', () => { if (video.ended) return; if (playbackBuffer?.internalPause) { playbackBuffer.internalPause = false; return; } playStatus.textContent = '已暂停'; if (playbackBuffer?.seconds) { if (!playbackBuffer.preparing) playbackBuffer.cancel(); } else resetAudio(); });
+video.addEventListener('seeking', () => { resetAudio(); if (playbackBuffer?.seconds) playbackBuffer.needsRebuild = true; if (playbackBuffer?.seconds && !playbackBuffer.cancelled) { playbackBuffer.internalPause = !video.paused; video.pause(); void playbackBuffer.play({rebuild:true}); } });
+video.addEventListener('ended', () => { hlsAudio?.tick(true); nativeChunks?.flush(true); collector?.port.postMessage('flush'); });
+const captionClock = setInterval(() => { captions.tick(); if (playbackBuffer?.seconds && Number.isFinite(video.duration) && hlsAudio?.cursor >= video.duration - 0.02 && nativeChunks?.offset > 0) nativeChunks?.flush(true); }, 100);
+video.addEventListener('error', () => { if (!video.error) return; playbackBuffer?.destroy(); const code = video.error?.code; stopCaptions(); hlsAudio?.destroy(); hlsAudio = undefined; hls?.destroy(); hls = undefined; playStatus.textContent = `视频播放失败${code ? '（媒体错误 ' + code + '）' : ''}，可点击播放重试。`; message('播放已停止，字幕已关闭。', true); initialized = false; });
 toggle.addEventListener('click', () => {
   if (enabled || preparing) { autoCaptions = false; stopCaptions(); return; }
   autoCaptions = true; void enableCaptions().catch(error => message(error.message, true));
@@ -200,7 +240,7 @@ document.querySelector('#fullscreen').addEventListener('click', () => { void ful
 document.addEventListener('keydown', event => { if (event.key === 'Escape' && document.querySelector('#stage').classList.contains('native-fullscreen')) void fullscreen(true); });
 document.querySelector('#clear').addEventListener('click', () => { resetAudio(); captions.clear(); });
 document.querySelector('#export').addEventListener('click', () => captions.exportText());
-window.addEventListener('pagehide', () => { request?.abort(); captions.stop(); hlsAudio?.destroy(); hls?.destroy(); void context?.close(); });
+window.addEventListener('pagehide', () => { clearInterval(captionClock); playbackBuffer?.destroy(); request?.abort(); captions.stop(); hlsAudio?.destroy(); hls?.destroy(); void context?.close(); });
 
 const opacity = document.querySelector('#opacity');
 opacity.addEventListener('input', () => {
@@ -219,21 +259,22 @@ document.querySelector('#saveVolcano').addEventListener('click',async()=>{
     ak.value='';sk.value='';message('火山密钥已保存在当前服务内存，退出 App 后清除。');
   } catch(error){message(error.message,true);}
 });
-export async function loadSource(value, label) {
-  try {
-    const parsed=new URL(value);
-    const result = await api('/api/source',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:value})});
-    stopCaptions();autoCaptions=true;video.pause();hlsAudio?.destroy();hlsAudio=undefined;hls?.destroy();hls=undefined;video.removeAttribute('src');video.load();initialized=false;
+const sourceLoader = createSourceLoader({
+  write:value => api('/api/source',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:value})}),
+  reset:() => { playbackBuffer?.destroy();sourceSession++;stopCaptions();autoCaptions=true;video.pause();hlsAudio?.destroy();hlsAudio=undefined;hls?.destroy();hls=undefined;video.removeAttribute('src');video.load();initialized=false; },
+  apply:async (result, value, label) => {
     if (result.kind === 'youtube') { settings.close(); playStatus.textContent = '已在 Chrome 打开'; message('在 YouTube 页面点击视听扩展，开启双语字幕。'); return; }
-    document.querySelector('#sourceName').textContent=label || parsed.hostname;
+    document.querySelector('#sourceName').textContent=label;
     document.querySelector('#sourceUrl').value=value;
     document.querySelector('#channelSelect').dispatchEvent(new CustomEvent('sourcechange', { detail: value }));
     playStatus.textContent='正在连接直播…';
-    settings.close();connect();await video.play();
-  }catch(error){message('载入失败：'+error.message,true);}
-}
+    settings.close();connect();await beginPlayback();
+  },
+  failed:error => message('载入失败：'+error.message,true)
+});
+export const loadSource = sourceLoader.load;
 document.querySelector('#loadSource').addEventListener('click',()=>loadSource(document.querySelector('#sourceUrl').value.trim()));
-void api('/api/source').then(data=>{document.querySelector('#sourceUrl').value=data.url; if(data.url)document.querySelector('#sourceName').textContent=new URL(data.url).hostname;}).catch(error=>message(error.message,true));
+void api('/api/source').then(data=>{if (!sourceLoader.untouched()) return; document.querySelector('#sourceUrl').value=data.url; if(data.url)document.querySelector('#sourceName').textContent=new URL(data.url).hostname;}).catch(error=>message(error.message,true));
 
 document.querySelector('#pairingCode').value = window.SHITING_TOKEN;
 document.querySelector('#copyPairing').addEventListener('click', async () => {
@@ -241,4 +282,4 @@ document.querySelector('#copyPairing').addEventListener('click', async () => {
   catch { document.querySelector('#pairingCode').select(); message('请复制已选中的配对码。'); }
 });
 
-setupNativeBridge({ video, captions, loadSource, api, notify: message });
+setupNativeBridge({ video, captions, loadSource, api, notify: message, configureBuffer, bufferState });

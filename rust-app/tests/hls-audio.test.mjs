@@ -83,3 +83,24 @@ test('retained decoded audio has a hard fragment bound', async () => {
     assert.ok(s.audio.buffers.reduce((n,b)=>n+b.samples.length/16000,0)<=60);
   } finally {s.restore();}
 });
+test('buffered audio processes ahead while paused but never beyond selected window',async()=>{
+ const s=setup(); const timing=[];
+ try {
+  s.audio.start((pcm,time)=>{s.output.push(pcm);timing.push(time);},{ahead:3});
+  for(let i=0;i<5;i++) {s.append(10+i,i);await settle();}
+  s.video.paused=true;s.tick();
+  assert.equal(s.output.reduce((n,x)=>n+x.length,0),48000);
+  assert.equal(timing[0].start,10);assert.equal(timing.at(-1).end,13);
+  s.tick(); assert.equal(s.output.reduce((n,x)=>n+x.length,0),48000);
+ }finally{s.restore();}
+});
+test('continuity reset invalidates old overlapping decoded and in-flight audio',async()=>{
+ let finish;let decodes=0;
+ const s=setup(()=>{decodes++;return decodes===2?new Promise(resolve=>{finish=resolve;}):Promise.resolve({sampleRate:16000,length:16000,numberOfChannels:1,getChannelData:()=>new Float32Array(16000).fill(.2)});});
+ try {
+  s.append(10,1);await settle();s.append(10,2);await settle();
+  s.audio.resetTimeline(1);
+  finish({sampleRate:16000,length:16000,numberOfChannels:1,getChannelData:()=>new Float32Array(16000).fill(.8)});
+  await settle();s.tick();assert.equal(s.output.length,0);assert.equal(s.audio.buffers.length,0);
+ } finally{s.restore();}
+});

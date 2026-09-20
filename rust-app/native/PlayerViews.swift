@@ -1,4 +1,6 @@
 import SwiftUI
+import AppKit
+import Combine
 
 private enum PlayerLayout {
     static let margin: CGFloat = 12
@@ -8,6 +10,23 @@ private enum PlayerLayout {
 
 struct NativePlayerView: View {
     @ObservedObject var model: PlayerModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var controlsCollapsed = false
+    @State private var lastActivity = Date()
+    @State private var bottomHovered = false
+    @State private var menuTracking = false
+    @State private var eventMonitor: Any?
+    @FocusState private var controlsFocused: Bool
+    private let idleTimer = Timer.publish(every: 0.25, on: .main, in: .common).autoconnect()
+
+    private var mayCollapse: Bool {
+        model.playing && model.error == nil && !model.settingsOpen && !model.channelPickerOpen && !model.historyOpen && !bottomHovered && !controlsFocused && !menuTracking
+    }
+
+    private func revealControls() {
+        lastActivity = Date()
+        controlsCollapsed = false
+    }
 
     var body: some View {
         ZStack {
@@ -19,11 +38,62 @@ struct NativePlayerView: View {
             VStack(spacing: 0) {
                 topControls
                 Spacer(minLength: 0)
-                bottomControls
+                ZStack {
+                    bottomControls
+                        .opacity(controlsCollapsed ? 0 : 1)
+                        .allowsHitTesting(!controlsCollapsed)
+                        .accessibilityHidden(controlsCollapsed)
+                    if controlsCollapsed {
+                        Button(action: revealControls) {
+                            Capsule().fill(.secondary).frame(width: 64, height: 6)
+                                .frame(width: 64, height: PlayerLayout.controlHeight)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .help("显示播放控制")
+                        .accessibilityLabel("显示播放控制")
+                    }
+                }
+                .onHover { bottomHovered = $0; if $0 { revealControls() } }
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: controlsCollapsed)
             }
             .padding(.horizontal, PlayerLayout.margin)
             .padding(.bottom, PlayerLayout.margin)
         }
+        .overlay(alignment: .trailing) {
+            CaptionHistorySidebar(model: model)
+                .frame(width: 340)
+                .padding(.top, 56)
+                .padding(.bottom, 60)
+                .padding(.trailing, PlayerLayout.margin)
+                .opacity(model.historyOpen ? 1 : 0)
+                .allowsHitTesting(model.historyOpen)
+                .accessibilityHidden(!model.historyOpen)
+        }
+        .onAppear {
+            eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDown, .rightMouseDown, .leftMouseDragged, .scrollWheel, .keyDown]) { event in
+                if event.window == model.webView.window {
+                    let wasCollapsed = controlsCollapsed
+                    revealControls()
+                    if wasCollapsed && [.keyDown, .leftMouseDown, .rightMouseDown].contains(event.type) { return nil }
+                }
+                return event
+            }
+            model.webView.window?.acceptsMouseMovedEvents = true
+        }
+        .onChange(of: model.isReady) {
+            model.webView.window?.acceptsMouseMovedEvents = true
+        }
+        .onDisappear {
+            if let eventMonitor { NSEvent.removeMonitor(eventMonitor) }
+            eventMonitor = nil
+        }
+        .onReceive(idleTimer) { now in
+            if !mayCollapse { controlsCollapsed = false; lastActivity = now }
+            else if now.timeIntervalSince(lastActivity) >= 3 { controlsCollapsed = true }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSMenu.didBeginTrackingNotification)) { _ in menuTracking = true; revealControls() }
+        .onReceive(NotificationCenter.default.publisher(for: NSMenu.didEndTrackingNotification)) { _ in menuTracking = false; revealControls() }
         .frame(minWidth: 760, minHeight: 520)
         .preferredColorScheme(model.appearance == "dark" ? .dark : model.appearance == "light" ? .light : nil)
         .sheet(isPresented: $model.settingsOpen) { PlayerSettingsView(model: model) }
@@ -62,6 +132,7 @@ struct NativePlayerView: View {
                     model.togglePlayback()
                 }
                 .disabled(model.sourceURL.isEmpty || !model.isReady)
+                .focused($controlsFocused)
                 HStack(spacing: 8) {
                     if !model.isReady { ProgressView().controlSize(.mini) }
                     Text(model.error ?? (model.sourceURL.isEmpty ? "选择频道，或粘贴播放地址" : model.playStatus))
@@ -76,15 +147,34 @@ struct NativePlayerView: View {
                 .frame(height: PlayerLayout.controlHeight)
                 .glassEffect(.regular, in: .capsule)
                 Spacer(minLength: 0)
-                Button { model.toggleCaptions() } label: {
+                Button { model.historyOpen.toggle() } label: {
                     Label(model.captionsPreparing ? "准备字幕" : "字幕", systemImage: model.captionsEnabled ? "captions.bubble.fill" : "captions.bubble")
                 }
                 .buttonStyle(.glass)
-                .help(model.captionsEnabled || model.captionsPreparing ? "关闭字幕" : "开启字幕")
-                .accessibilityValue(model.captionsEnabled ? "已开启" : "已关闭")
+                .help(model.historyOpen ? "关闭字幕回看" : "打开字幕回看")
+                .accessibilityValue(model.historyOpen ? "回看侧栏已打开" : "回看侧栏已关闭")
+                .focused($controlsFocused)
                 .disabled(model.sourceURL.isEmpty || !model.isReady)
+                Menu {
+                    Button(model.captionsEnabled || model.captionsPreparing ? "关闭字幕识别" : "开启字幕识别") { model.toggleCaptions() }
+                    Picker("字幕显示", selection: $model.captionMode) {
+                        Text("中文＋英文").tag("both")
+                        Text("只看中文").tag("zh")
+                        Text("只看英文").tag("en")
+                        Text("隐藏画面字幕").tag("off")
+                    }
+                } label: {
+                    Image(systemName: "chevron.down").accessibilityLabel("字幕选项")
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("字幕开关与显示语言")
+                .focused($controlsFocused)
+                .disabled(model.sourceURL.isEmpty || !model.isReady)
+                .onChange(of: model.captionMode) { model.applySettings() }
                 GlassIconButton(title: "全屏", symbol: "arrow.up.left.and.arrow.down.right") { model.toggleFullscreen() }
                     .keyboardShortcut("f", modifiers: [.command, .control])
+                    .focused($controlsFocused)
             }
             .controlSize(.regular)
         }
@@ -261,6 +351,17 @@ private struct PlayerSettingsView: View {
                     Text("透明度越高，字幕底色越淡。隐藏字幕时仍继续识别。")
                         .font(.caption).foregroundStyle(.secondary)
                 }
+                Section("字幕缓冲") {
+                    Toggle("提前缓冲，给字幕处理更多时间", isOn: $model.captionBufferEnabled)
+                    Picker("缓冲时长", selection: $model.captionBufferSeconds) {
+                        Text("3 秒").tag(3)
+                        Text("4 秒").tag(4)
+                        Text("5 秒").tag(5)
+                    }
+                    .disabled(!model.captionBufferEnabled)
+                    Text("默认关闭，保留当前播放方式。开启后画面与原声一起延迟，字幕尽量提前准备；较慢的翻译仍可能晚到。更改在下次载入播放来源时生效。")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 Section("翻译") {
                     Picker("翻译服务", selection: $model.provider) {
                         Text("本机翻译").tag("local")
@@ -300,6 +401,7 @@ private struct PlayerSettingsView: View {
                         }
                     }
                 }
+                UpdateSettingsView()
                 Section("浏览器连接") {
                     Button("复制配对码", systemImage: "doc.on.doc", action: model.copyPairing)
                         .buttonStyle(.glass)
@@ -310,6 +412,8 @@ private struct PlayerSettingsView: View {
             .onChange(of: model.captionMode) { model.applySettings() }
             .onChange(of: model.captionOpacity) { model.applySettings() }
             .onChange(of: model.provider) { model.applySettings() }
+            .onChange(of: model.captionBufferEnabled) { model.applySettings() }
+            .onChange(of: model.captionBufferSeconds) { model.applySettings() }
         }
         .frame(width: 640, height: 640)
     }
