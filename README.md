@@ -4,12 +4,31 @@ macOS 原生 Liquid Glass 视频播放器，支持 HLS 直播、本机英文语�
 
 ## 下载
 
-[下载 v2.1.0 安装包](https://github.com/nistudyc/shiting/releases/download/v2.1.0/Shiting-macOS-LiquidGlass-arm64.zip) · [全部版本](https://github.com/nistudyc/shiting/releases)
+[下载最新 DMG 安装包](https://github.com/nistudyc/shiting/releases/latest) · [全部版本](https://github.com/nistudyc/shiting/releases)
 
 - **系统要求：Apple Silicon（M 系列）Mac，macOS 26 或更新版本。**
-- 解压后打开「视听.app」，也可以将它拖入「应用程序」。
+- 打开 DMG，将「视听.app」拖入「应用程序」；替换前退出旧版，设置与模型缓存可保留。
 - 安装包采用本机临时签名，尚未进行 Apple Developer ID 签名或公证，其他 Mac 可能显示安全提示。
 - 安装包不含模型、API 密钥和观看记录；首次使用字幕需联网下载模型，之后复用本机缓存。
+
+## 让 Codex / 豆包工作帮你安装
+
+复制下面一句话发送给有本机操作能力的智能体：
+
+> 请按照 https://github.com/nistudyc/shiting/blob/main/AGENT-INSTALL.md 帮我安装或升级最新版视听，保留现有设置和模型缓存，完成后打开应用，不播放媒体；需要系统密码时让我在系统窗口自行输入。
+
+[智能体安装指引](AGENT-INSTALL.md) 包含下载、校验、旧版替换与最小完成检查。
+
+## v2.2.1 更新
+
+- 修复玻璃合成遮挡顶底栏文字，并在深浅外观下保留可读性衬底。
+
+- 原生 Liquid Glass，玻璃背景透明度0–100%，全局字体85–140%，即时生效并保存；系统菜单与对话框字号仍由macOS管理。
+- 现有即时播放保持默认，可选3／4／5秒字幕缓冲；播放不等待迟到翻译。
+- 闲置底栏自动收起；字幕回看侧栏支持向上浏览、返回最新、选择复制与导出。
+- 新增签名自动更新和标准DMG安装。v2.1.0及以前手动安装一次后，即可使用内置更新。
+- 本版仅做编译、非播放逻辑、无媒体界面、安装包及签名检查，没有进行播放测试或实际跨版本安装演练。
+
 
 ## 使用
 
@@ -20,15 +39,6 @@ macOS 原生 Liquid Glass 视频播放器，支持 HLS 直播、本机英文语�
 5. 设置中可调整外观、字幕语言和背景透明度，查看、导出或清空本次字幕记录。
 
 频道列表包含 70 个去重地址，其中 4 个 DASH/UHD 项标为暂不支持。频道地址可能失效、受地区限制或暂时没有节目，不保证全部可播放；也可以输入自己的播放地址。
-
-## v2.1.0 更新
-
-- 使用 SwiftUI/AppKit 原生按钮、设置和弹窗，采用系统 Liquid Glass；顶部和底部控制区更紧凑。
-- Rust 本机服务承担媒体代理、语音识别和翻译，随 App 启停；无需安装 Node.js 或 Electron。
-- 修复 BBC HLS 清单刷新时分片地址变化导致的播放错误。
-- 修复 WebKit 音轨采集全零问题，通过 HLS 音频片段解码并按播放时间取样。
-- 英文不再等待多轮稳定结果；中文更新间隔从 2.4 秒缩短到 1 秒。
-- 已在打包 App 中实测 BBC News HD/BBC News、频道切换、双语字幕、暂停/继续、全屏和重开。未逐台验收全部频道。
 
 ## 字幕与隐私
 
@@ -45,30 +55,10 @@ macOS 原生 Liquid Glass 视频播放器，支持 HLS 直播、本机英文语�
 
 ## 源码构建
 
-新版源码位于 [`rust-app/`](rust-app/)。仓库根目录的 Electron 实现保留作为历史版本。
+发布源码以 [v2.2.1 标签](https://github.com/nistudyc/shiting/tree/v2.2.1/rust-app) 为准，开发或复现发布包请先检出对应标签。仓库根目录的 Electron 实现保留作为历史版本。
 
-需要 Rust（支持 edition 2024）、macOS Apple Silicon 和支持 Liquid Glass 的 Swift/macOS SDK。当前打包脚本使用 Command Line Tools 中的 macOS 26.5 SDK；使用其他 SDK 时调整脚本的 `-sdk` 路径。macOS 27 SDK 的 SwiftUI 宏需要匹配的编译插件。
+发布构建说明见 [安装与更新文档](https://github.com/nistudyc/shiting/blob/v2.2.1/rust-app/docs/UPDATES.md)。使用 Rust、Node.js、macOS 26.5 SDK，以及发布者自己的更新签名凭据。普通安装用户不需要这些工具或密钥。
 
-准备官方 ONNX Runtime 1.20.1：
-
-```sh
-cd rust-app
-mkdir -p runtime
-curl -fL https://github.com/microsoft/onnxruntime/releases/download/v1.20.1/onnxruntime-osx-arm64-1.20.1.tgz -o runtime/onnxruntime.tgz
-tar -xzf runtime/onnxruntime.tgz -C runtime
-cp runtime/onnxruntime-osx-arm64-1.20.1/lib/libonnxruntime.1.20.1.dylib runtime/
-cp runtime/onnxruntime-osx-arm64-1.20.1/LICENSE runtime/ONNXRUNTIME-LICENSE
-sh scripts/package-native.sh
-```
-
-产物：`rust-app/dist/视听.app` 和 `rust-app/dist/Shiting-macOS-LiquidGlass-arm64.zip`。原生 App 版本为 2.1.0，内部 Rust 服务包版本仍为 2.0.0。
-
-测试：
-
-```sh
-cd rust-app
-cargo test --locked --no-default-features
-node --test tests/*.test.mjs
-```
+打包入口为 `rust-app/scripts/package-native.sh`，产物位于 `rust-app/dist/release-<版本>/`，包括 DMG、更新ZIP、签名appcast和校验清单。
 
 Chrome 扩展源码位于 `rust-app/extension/`，仍待真实浏览器联调，本次 Release 不分发扩展。第三方依赖与模型遵循各自许可证，App 内保留 ONNX Runtime 许可。
