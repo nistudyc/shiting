@@ -12,6 +12,7 @@ struct WebPlayer: NSViewRepresentable {
 @MainActor
 final class PlayerAppDelegate: NSObject, NSApplicationDelegate {
     static weak var player: PlayerModel?
+    func applicationDidFinishLaunching(_ notification: Notification) { AppUpdates.shared.start() }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
     func applicationWillTerminate(_ notification: Notification) { Self.player?.stop() }
 }
@@ -29,6 +30,7 @@ struct ShitingNativeApp: App {
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1180, height: 760)
         .commands {
+            CommandGroup(after: .appInfo) { UpdateMenuItem() }
             CommandGroup(replacing: .newItem) {}
             CommandGroup(replacing: .appSettings) {
                 Button("设置…") { model.settingsOpen = true }
