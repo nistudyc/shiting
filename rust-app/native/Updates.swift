@@ -56,11 +56,11 @@ struct UpdateSettingsView: View {
                 Spacer()
                 if let date = updates.lastCheck {
                     Text("上次检查：\(date.formatted(date: .abbreviated, time: .shortened))")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .appFont(11).foregroundStyle(.secondary)
                 }
             }
             Text("更新会验证发布签名。下载后可立即安装并重新打开，也可在退出时安装。首次安装请将视听拖入“应用程序”。")
-                .font(.caption).foregroundStyle(.secondary)
+                .appFont(11).foregroundStyle(.secondary)
         }
     }
 }

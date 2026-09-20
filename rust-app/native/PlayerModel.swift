@@ -54,6 +54,18 @@ final class PlayerModel: NSObject, ObservableObject, WKNavigationDelegate {
         guard let value = UserDefaults.standard.object(forKey: "glassTransparency") as? Double, value.isFinite else { return 50 }
         return min(100, max(0, value))
     }
+    @Published var fontScale = PlayerModel.savedFontScale() {
+        didSet {
+            let value = fontScale.isFinite ? min(1.4, max(0.85, fontScale)) : 1
+            if value != fontScale { fontScale = value }
+            UserDefaults.standard.set(value, forKey: "fontScale")
+            applySettings()
+        }
+    }
+    private static func savedFontScale() -> Double {
+        guard let value = UserDefaults.standard.object(forKey: "fontScale") as? Double, value.isFinite else { return 1 }
+        return min(1.4, max(0.85, value))
+    }
     @Published var captionBufferEnabled = UserDefaults.standard.bool(forKey: "captionBufferEnabled")
     @Published var captionBufferSeconds = [3, 4, 5].contains(UserDefaults.standard.integer(forKey: "captionBufferSeconds")) ? UserDefaults.standard.integer(forKey: "captionBufferSeconds") : 3
     @Published var historyOpen = false
@@ -189,7 +201,7 @@ final class PlayerModel: NSObject, ObservableObject, WKNavigationDelegate {
     func applySettings() {
         UserDefaults.standard.set(captionBufferEnabled, forKey: "captionBufferEnabled")
         UserDefaults.standard.set(captionBufferSeconds, forKey: "captionBufferSeconds")
-        command(["type": "settings", "mode": captionMode, "provider": provider, "opacity": captionOpacity, "appearance": appearance, "captionBufferEnabled": captionBufferEnabled, "captionBufferSeconds": captionBufferSeconds])
+        command(["type": "settings", "mode": captionMode, "provider": provider, "opacity": captionOpacity, "appearance": appearance, "captionBufferEnabled": captionBufferEnabled, "captionBufferSeconds": captionBufferSeconds, "fontScale": fontScale])
     }
     func saveGoogle(_ key: String) { command(["type": "google", "key": key.trimmingCharacters(in: .whitespacesAndNewlines)]) }
     func saveVolcano(ak: String, sk: String) { command(["type": "volcano", "ak": ak, "sk": sk]) }

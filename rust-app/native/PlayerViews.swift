@@ -63,8 +63,8 @@ struct NativePlayerView: View {
         .overlay(alignment: .trailing) {
             CaptionHistorySidebar(model: model)
                 .frame(width: 340)
-                .padding(.top, 56)
-                .padding(.bottom, 60)
+                .padding(.top, 56 * model.fontScale)
+                .padding(.bottom, 60 * model.fontScale)
                 .padding(.trailing, PlayerLayout.margin)
                 .opacity(model.historyOpen ? 1 : 0)
                 .allowsHitTesting(model.historyOpen)
@@ -96,25 +96,25 @@ struct NativePlayerView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSMenu.didEndTrackingNotification)) { _ in menuTracking = false; revealControls() }
         .frame(minWidth: 760, minHeight: 520)
         .preferredColorScheme(model.appearance == "dark" ? .dark : model.appearance == "light" ? .light : nil)
-        .sheet(isPresented: $model.settingsOpen) { PlayerSettingsView(model: model).environment(\.glassTransparency, model.glassTransparency) }
-        .environment(\.glassTransparency, model.glassTransparency)
+        .sheet(isPresented: $model.settingsOpen) { PlayerSettingsView(model: model).appAppearance(model) }
+        .appAppearance(model)
     }
 
     private var topControls: some View {
         GlassEffectContainer(spacing: 8) {
             HStack(spacing: 8) {
                 Text(model.sourceName.isEmpty ? "视听" : model.sourceName)
-                    .font(.system(size: 13, weight: .medium))
+                    .appFont(13, weight: .medium)
                     .lineLimit(1)
                     .padding(.horizontal, 12)
-                    .frame(height: 32)
+                    .frame(minHeight: 32 * model.fontScale)
                     .appGlass(in: Capsule())
                 Spacer(minLength: 12)
                 Button { model.channelPickerOpen = true } label: {
                     Label("频道", systemImage: "list.bullet")
                 }
                 .popover(isPresented: $model.channelPickerOpen, arrowEdge: .bottom) {
-                    ChannelPickerView(model: model).environment(\.glassTransparency, model.glassTransparency)
+                    ChannelPickerView(model: model).appAppearance(model)
                 }
                 GlassIconButton(title: "设置", symbol: "gearshape") { model.settingsOpen = true }
                     .keyboardShortcut(",", modifiers: .command)
@@ -123,7 +123,7 @@ struct NativePlayerView: View {
             .controlSize(.regular)
         }
         .padding(.leading, 76)
-        .frame(height: PlayerLayout.topHeight)
+        .frame(minHeight: PlayerLayout.topHeight * model.fontScale)
     }
 
     private var bottomControls: some View {
@@ -143,9 +143,9 @@ struct NativePlayerView: View {
                         Text(model.captionStatus).lineLimit(1).foregroundStyle(.secondary)
                     }
                 }
-                .font(.system(size: 12))
+                .appFont(12)
                 .padding(.horizontal, 12)
-                .frame(height: PlayerLayout.controlHeight)
+                .frame(minHeight: PlayerLayout.controlHeight * model.fontScale)
                 .appGlass(in: Capsule())
                 Spacer(minLength: 0)
                 Button { model.historyOpen.toggle() } label: {
@@ -179,18 +179,19 @@ struct NativePlayerView: View {
             }
             .controlSize(.regular)
         }
-        .frame(height: PlayerLayout.controlHeight)
+        .frame(minHeight: PlayerLayout.controlHeight * model.fontScale)
     }
 }
 
 private struct GlassIconButton: View {
+    @Environment(\.appFontScale) private var fontScale
     let title: String
     let symbol: String
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: symbol).frame(width: 16, height: 20)
+            Image(systemName: symbol).frame(width: 16 * fontScale, height: 20 * fontScale)
         }
         .buttonStyle(AppGlassButtonStyle())
         .help(title)
@@ -205,11 +206,11 @@ private struct WelcomeView: View {
         VStack(alignment: .leading, spacing: 24) {
             VStack(alignment: .leading, spacing: 8) {
                 Image(systemName: "play.rectangle")
-                    .font(.system(size: 32, weight: .light))
+                    .appFont(32, weight: .light)
                     .foregroundStyle(.secondary)
-                Text("开始观看").font(.system(size: 24, weight: .semibold))
+                Text("开始观看").appFont(24, weight: .semibold)
                 Text("选择一个频道，或粘贴你想看的播放地址。")
-                    .font(.system(size: 13)).foregroundStyle(.secondary)
+                    .appFont(13).foregroundStyle(.secondary)
             }
             SourceEntryView(model: model)
             Button { model.channelPickerOpen = true } label: {
@@ -220,7 +221,7 @@ private struct WelcomeView: View {
             .controlSize(.large)
         }
         .padding(32)
-        .frame(width: 484)
+        .frame(width: 484 + 100 * (model.fontScale - 1))
         .appGlass(in: RoundedRectangle(cornerRadius: 24))
     }
 }
@@ -254,7 +255,7 @@ private struct ChannelPickerView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("频道").font(.headline)
+            Text("频道").appFont(13, weight: .semibold)
             ChannelListView(model: model)
         }
         .padding(16)
@@ -283,11 +284,11 @@ private struct ChannelListView: View {
                             Text(channel.name).lineLimit(1)
                             Spacer()
                             if !channel.supported {
-                                Text("暂不支持").font(.caption).foregroundStyle(.secondary)
+                                Text("暂不支持").appFont(11).foregroundStyle(.secondary)
                             } else if model.sourceURL == channel.url {
                                 Image(systemName: "checkmark").foregroundStyle(.tint)
                             } else {
-                                Image(systemName: "play.fill").font(.caption).foregroundStyle(.secondary)
+                                Image(systemName: "play.fill").appFont(11).foregroundStyle(.secondary)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -319,7 +320,7 @@ private struct PlayerSettingsView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("设置").font(.title2.weight(.semibold))
+                Text("设置").appFont(22, weight: .semibold)
                 Spacer()
                 Button("完成") { model.settingsOpen = false }
                     .buttonStyle(AppGlassButtonStyle(prominent: true))
@@ -348,10 +349,10 @@ private struct PlayerSettingsView: View {
                         Slider(value: $model.captionOpacity, in: 0...100, step: 1)
                             .accessibilityLabel("字幕背景透明度")
                         Text("\(Int(model.captionOpacity))%")
-                            .monospacedDigit().frame(width: 44, alignment: .trailing)
+                            .monospacedDigit().frame(minWidth: 44 * model.fontScale, alignment: .trailing)
                     }
                     Text("透明度越高，字幕底色越淡。隐藏字幕时仍继续识别。")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .appFont(11).foregroundStyle(.secondary)
                 }
                 Section("字幕缓冲") {
                     Toggle("提前缓冲，给字幕处理更多时间", isOn: $model.captionBufferEnabled)
@@ -362,7 +363,7 @@ private struct PlayerSettingsView: View {
                     }
                     .disabled(!model.captionBufferEnabled)
                     Text("默认关闭，保留当前播放方式。开启后画面与原声一起延迟，字幕尽量提前准备；较慢的翻译仍可能晚到。更改在下次载入播放来源时生效。")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .appFont(11).foregroundStyle(.secondary)
                 }
                 Section("翻译") {
                     Picker("翻译服务", selection: $model.provider) {
@@ -391,7 +392,7 @@ private struct PlayerSettingsView: View {
                     } else {
                         ForEach(model.history.suffix(20), id: \.id) { entry in
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(entry.time).font(.caption).foregroundStyle(.secondary)
+                                Text(entry.time).appFont(11).foregroundStyle(.secondary)
                                 Text(entry.zh)
                                 Text(entry.en).foregroundStyle(.secondary)
                             }

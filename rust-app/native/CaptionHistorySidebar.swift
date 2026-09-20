@@ -47,7 +47,7 @@ struct CaptionHistorySidebar: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("字幕回看").font(.headline)
+                Text("字幕回看").appFont(13, weight: .semibold)
                 Spacer()
                 Button(action: model.exportHistory) {
                     Image(systemName: "square.and.arrow.up")
@@ -75,11 +75,11 @@ struct CaptionHistorySidebar: View {
                                         Text(source).lineLimit(1)
                                     }
                                 }
-                                .font(.system(size: 11)).foregroundStyle(.secondary)
+                                .appFont(11).foregroundStyle(.secondary)
                                 if !entry.zh.isEmpty { Text(entry.zh) }
                                 if !entry.en.isEmpty { Text(entry.en).foregroundStyle(.secondary) }
                             }
-                            .font(.system(size: 13))
+                            .appFont(13)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .textSelection(.enabled)
                             .id(entry.id)
@@ -117,10 +117,10 @@ struct CaptionHistorySidebar: View {
             }
             if historyTrimmed {
                 Text("较早记录已清理，已保留当前可用的最早位置。")
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                    .appFont(11).foregroundStyle(.secondary)
             }
             Text("保留最近 120 条字幕记录")
-                .font(.system(size: 11)).foregroundStyle(.secondary)
+                .appFont(11).foregroundStyle(.secondary)
         }
         .padding(16)
         .appGlass(in: RoundedRectangle(cornerRadius: 16))

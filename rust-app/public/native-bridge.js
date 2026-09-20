@@ -16,6 +16,9 @@ export function setupNativeBridge({ video, captions, loadSource, api, notify, co
         case 'captions': click('#toggle'); break;
         case 'settings':
           configureBuffer(command);
+          if (Number.isFinite(command.fontScale)) {
+            document.documentElement.style.setProperty('--app-font-scale', String(Math.min(1.4, Math.max(0.85, command.fontScale))));
+          }
           set('#mode', command.mode); set('#opacity',command.opacity,'input'); set('#theme',command.appearance);
           if (document.querySelector('#provider').value !== command.provider) set('#provider',command.provider);
           break;

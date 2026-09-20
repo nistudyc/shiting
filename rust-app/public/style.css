@@ -9,3 +9,7 @@
 .stage.native-fullscreen{position:fixed;inset:0;z-index:100;width:100vw;height:100dvh;min-height:0}.stage.native-fullscreen .fullscreen-exit{display:block}.stage.native-fullscreen:hover .fullscreen-exit{opacity:1}
 
 .native-shell .app-header,.native-shell .transport,.native-shell .model-status,.native-shell dialog,.native-shell .fullscreen-exit{display:none!important}.native-shell .stage{height:100dvh;min-height:0}.native-shell .viewing{min-height:0}.native-shell .captions{bottom:12%}
+
+.native-shell .captions{height:auto;min-height:clamp(100px,12vw,144px)}
+.native-shell .captions p{font-size:clamp(calc(18px * var(--app-font-scale,1)),calc(2.1vw * var(--app-font-scale,1)),calc(26px * var(--app-font-scale,1)));flex-shrink:0}
+.native-shell .captions #en{font-size:clamp(calc(16px * var(--app-font-scale,1)),calc(1.6vw * var(--app-font-scale,1)),calc(22px * var(--app-font-scale,1)))}
