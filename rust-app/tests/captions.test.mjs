@@ -82,3 +82,18 @@ test('short end-of-media phrase survives paused scheduling and completes transla
   if(buffered)assert.equal(elements.get('#en').textContent,'');view.stop();
  }
 });
+test('automatic phrase boundary during the final PCM drain retains end-of-media scheduling', async () => {
+ const load=async name=>import('data:text/javascript;base64,'+Buffer.from(await readFile(new URL('../public/'+name,import.meta.url),'utf8')).toString('base64'));
+ const {SpeechChunks}=await load('speech-chunks.js');
+ const {acceptsAudio,timelyAudio}=await load('audio-scheduling.js');
+ for (const buffered of [false,true]) {
+  const voice=buffered?24000:8000, silence=buffered?0:6400;
+  const pcm=new Float32Array(voice+silence);pcm.fill(.1,0,voice);
+  const ending=pcm.length/16000, queue=[];
+  const chunks=new SpeechChunks(chunk=>{
+   if(acceptsAudio(chunk,{enabled:true,buffered,paused:true,seeking:false}) && (!buffered||timelyAudio(chunk,ending))) queue.push(chunk);
+  },{maxSeconds:buffered?1.5:16});
+  chunks.push(pcm,{start:0,endOfMedia:true});chunks.flush(true);
+  assert.equal(queue.length,1);assert.equal(queue[0].endOfMedia,true);
+ }
+});

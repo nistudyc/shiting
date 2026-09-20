@@ -104,3 +104,13 @@ test('continuity reset invalidates old overlapping decoded and in-flight audio',
   await settle();s.tick();assert.equal(s.output.length,0);assert.equal(s.audio.buffers.length,0);
  } finally{s.restore();}
 });
+test('ended drain emits the remaining PCM with an end-of-media marker while paused', async () => {
+ const s=setup(), received=[];
+ try {
+  s.audio.start((samples,timing)=>received.push({samples,timing}));
+  s.append();await settle();s.video.currentTime=11;s.video.paused=true;
+  s.audio.tick(true);
+  assert.equal(received.length,1);assert.equal(received[0].timing.endOfMedia,true);
+  assert.equal(received[0].timing.end,11);assert.ok(received[0].samples.length>0);
+ } finally {s.restore();}
+});

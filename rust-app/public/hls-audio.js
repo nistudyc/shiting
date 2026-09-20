@@ -117,7 +117,7 @@ export class HlsAudio {
       const from = Math.max(0, Math.ceil((this.cursor - buffer.start) * RATE - 1e-6));
       const to = Math.min(buffer.samples.length, Math.floor((limit - buffer.start) * RATE + 1e-6));
       if (to > from) {
-        this.onSamples(buffer.samples.slice(from, to), {start:buffer.start + from / RATE, end:buffer.start + to / RATE});
+        this.onSamples(buffer.samples.slice(from, to), {start:buffer.start + from / RATE, end:buffer.start + to / RATE, endOfMedia});
         this.cursor = buffer.start + to / RATE;
       }
     }
