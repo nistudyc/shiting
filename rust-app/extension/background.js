@@ -46,5 +46,8 @@ chrome.tabs.onRemoved.addListener(async tabId => {
 chrome.tabs.onUpdated.addListener(async (tabId, info) => {
   if (info.status !== 'loading' && !info.url) return;
   const { captureState } = await chrome.storage.session.get('captureState');
-  if (captureState?.tabId === tabId) await stop();
+  if (captureState?.tabId !== tabId) return;
+  // YouTube 是单页应用：站内跳转（含进入/切换直播页）不结束 tabCapture 流，只有离开 YouTube 才停止；
+  // info.url 缺失（无权限可见）的真实导航保守视为离开。整页刷新由 offscreen 的流 onended 自行收尾。
+  if (!isYouTube(info.url)) await stop();
 });
