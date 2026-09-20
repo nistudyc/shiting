@@ -39,6 +39,7 @@ cat > "$app/Contents/Info.plist" <<PLIST
 <key>SUPublicEDKey</key><string>$public_key</string>
 <key>SUVerifyUpdateBeforeExtraction</key><true/>
 <key>SURequireSignedFeed</key><true/>
+<key>SUSignedFeedFailureExpirationInterval</key><integer>0</integer>
 <key>SUEnableAutomaticChecks</key><true/>
 <key>SUAutomaticallyUpdate</key><true/>
 <key>SUScheduledCheckInterval</key><integer>86400</integer>
