@@ -25,6 +25,6 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
 PLIST
 codesign --force --deep --sign - "$app"
 ditto -c -k --sequesterRsrc --keepParent "$app" dist/Shiting-Rust-macOS-arm64.zip
-zip -rq dist/Shiting-Chrome-extension.zip extension -x '*/core.test.js' '*/package.json' '*/DESIGN.md'
+zip -rq dist/Shiting-Chrome-extension.zip extension -x '*/core.test.js' '*/caption-flow.test.js' '*/package.json' '*/DESIGN.md'
 shasum -a 256 dist/*.zip > dist/SHA256SUMS.txt
 du -sh "$app" dist/*.zip

@@ -6,6 +6,19 @@
   "description": "捕获当前 YouTube 标签页声音，使用视听桌面端生成英文与中文字幕。",
   "permissions": ["tabCapture", "offscreen", "storage", "activeTab", "scripting"],
   "host_permissions": ["http://127.0.0.1:48765/*"],
+  "icons": {
+    "16": "icons/icon_16x16.png",
+    "32": "icons/icon_32x32.png",
+    "48": "icons/icon_48x48.png",
+    "128": "icons/icon_128x128.png"
+  },
   "background": {"service_worker": "background.js", "type": "module"},
-  "action": {"default_popup": "popup.html", "default_title": "视听双语字幕"}
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "视听双语字幕",
+    "default_icon": {
+      "16": "icons/icon_16x16.png",
+      "32": "icons/icon_32x32.png"
+    }
+  }
 }
