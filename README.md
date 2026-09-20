@@ -19,7 +19,9 @@ macOS 原生 Liquid Glass 视频播放器，支持 HLS 直播、本机英文语�
 
 [智能体安装指引](AGENT-INSTALL.md) 包含下载、校验、旧版替换与最小完成检查。
 
-## v2.2.0 更新
+## v2.2.1 更新
+
+- 修复玻璃合成遮挡顶底栏文字，并在深浅外观下保留可读性衬底。
 
 - 原生 Liquid Glass，玻璃背景透明度0–100%，全局字体85–140%，即时生效并保存；系统菜单与对话框字号仍由macOS管理。
 - 现有即时播放保持默认，可选3／4／5秒字幕缓冲；播放不等待迟到翻译。
@@ -53,9 +55,9 @@ macOS 原生 Liquid Glass 视频播放器，支持 HLS 直播、本机英文语�
 
 ## 源码构建
 
-发布源码以 [v2.2.0 标签](https://github.com/nistudyc/shiting/tree/v2.2.0/rust-app) 为准，开发或复现发布包请先检出对应标签。仓库根目录的 Electron 实现保留作为历史版本。
+发布源码以 [v2.2.1 标签](https://github.com/nistudyc/shiting/tree/v2.2.1/rust-app) 为准，开发或复现发布包请先检出对应标签。仓库根目录的 Electron 实现保留作为历史版本。
 
-发布构建说明见 [安装与更新文档](https://github.com/nistudyc/shiting/blob/v2.2.0/rust-app/docs/UPDATES.md)。使用 Rust、Node.js、macOS 26.5 SDK，以及发布者自己的更新签名凭据。普通安装用户不需要这些工具或密钥。
+发布构建说明见 [安装与更新文档](https://github.com/nistudyc/shiting/blob/v2.2.1/rust-app/docs/UPDATES.md)。使用 Rust、Node.js、macOS 26.5 SDK，以及发布者自己的更新签名凭据。普通安装用户不需要这些工具或密钥。
 
 打包入口为 `rust-app/scripts/package-native.sh`，产物位于 `rust-app/dist/release-<版本>/`，包括 DMG、更新ZIP、签名appcast和校验清单。
 

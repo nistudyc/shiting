@@ -4,11 +4,11 @@ Apple Silicon、macOS 26+。原声播放，本机英语识别与中文翻译；�
 
 ## 安装
 
-从 [GitHub Releases](https://github.com/nistudyc/shiting/releases) 下载最新 DMG，打开后将“视听.app”拖进 Applications，退出旧版，再从应用程序打开新版。当前未做 Apple Developer ID 签名或公证；新 Mac 首次打开可能需要在系统设置的隐私与安全性中确认。
+从 [GitHub Releases](https://github.com/nistudyc/shiting/releases) 下载最新 DMG，先退出旧版，再打开 DMG 将“视听.app”拖进 Applications，最后从应用程序打开新版。当前未做 Apple Developer ID 签名或公证；新 Mac 首次打开可能需要在系统设置的隐私与安全性中确认。
 
 [让智能体帮你安装](../AGENT-INSTALL.md)
 
-## v2.2.0
+## v2.2.1
 
 - 液态玻璃背景透明度0–100%，全局字体85–140%，即时保存；系统菜单和系统对话框保持macOS字号。
 - 默认维持现有即时字幕方式。设置可选择额外 3／4／5 秒字幕缓冲，下次载入来源生效；画面与原声一起延迟，字幕处理尽量提前，来不及不阻塞播放。
@@ -26,8 +26,8 @@ Apple Silicon、macOS 26+。原声播放，本机英语识别与中文翻译；�
 
 ## 开发与发布
 
-发布源码以 [v2.2.0标签](https://github.com/nistudyc/shiting/tree/v2.2.0/rust-app) 为准。
+发布源码以 [v2.2.1标签](https://github.com/nistudyc/shiting/tree/v2.2.1/rust-app) 为准。
 
 `node --test tests/*.test.mjs` 检查字幕、音频分段和缓冲逻辑；`cargo test --no-default-features --locked` 检查 Rust 逻辑。打包入口 `sh scripts/package-native.sh`，输出 `dist/release-版本/`。
 
-[安装和更新发布说明](https://github.com/nistudyc/shiting/blob/v2.2.0/rust-app/docs/UPDATES.md) · [改进方案](https://github.com/nistudyc/shiting/blob/v2.2.0/rust-app/docs/DELAYED-PLAYBACK-PLAN-20260919.md)
+[安装和更新发布说明](https://github.com/nistudyc/shiting/blob/v2.2.1/rust-app/docs/UPDATES.md) · [改进方案](https://github.com/nistudyc/shiting/blob/v2.2.1/rust-app/docs/DELAYED-PLAYBACK-PLAN-20260919.md)
