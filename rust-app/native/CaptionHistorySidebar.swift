@@ -75,9 +75,9 @@ struct CaptionHistorySidebar: View {
                                         Text(source).lineLimit(1)
                                     }
                                 }
-                                .appFont(11).foregroundStyle(.secondary)
+                                .appFont(11).appSecondary()
                                 if !entry.zh.isEmpty { Text(entry.zh) }
-                                if !entry.en.isEmpty { Text(entry.en).foregroundStyle(.secondary) }
+                                if !entry.en.isEmpty { Text(entry.en).appSecondary() }
                             }
                             .appFont(13)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -117,10 +117,10 @@ struct CaptionHistorySidebar: View {
             }
             if historyTrimmed {
                 Text("较早记录已清理，已保留当前可用的最早位置。")
-                    .appFont(11).foregroundStyle(.secondary)
+                    .appFont(11).appSecondary()
             }
             Text("保留最近 120 条字幕记录")
-                .appFont(11).foregroundStyle(.secondary)
+                .appFont(11).appSecondary()
         }
         .padding(16)
         .appGlass(in: RoundedRectangle(cornerRadius: 16))

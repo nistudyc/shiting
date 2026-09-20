@@ -139,8 +139,8 @@ struct NativePlayerView: View {
                     Text(model.error ?? (model.sourceURL.isEmpty ? "选择频道，或粘贴播放地址" : model.playStatus))
                         .lineLimit(1)
                     if !model.captionStatus.isEmpty && !model.sourceURL.isEmpty {
-                        Text("·").foregroundStyle(.secondary)
-                        Text(model.captionStatus).lineLimit(1).foregroundStyle(.secondary)
+                        Text("·").appSecondary()
+                        Text(model.captionStatus).lineLimit(1).appSecondary()
                     }
                 }
                 .appFont(12)
@@ -207,10 +207,10 @@ private struct WelcomeView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Image(systemName: "play.rectangle")
                     .appFont(32, weight: .light)
-                    .foregroundStyle(.secondary)
+                    .appSecondary()
                 Text("开始观看").appFont(24, weight: .semibold)
                 Text("选择一个频道，或粘贴你想看的播放地址。")
-                    .appFont(13).foregroundStyle(.secondary)
+                    .appFont(13).appSecondary()
             }
             SourceEntryView(model: model)
             Button { model.channelPickerOpen = true } label: {
@@ -284,11 +284,11 @@ private struct ChannelListView: View {
                             Text(channel.name).lineLimit(1)
                             Spacer()
                             if !channel.supported {
-                                Text("暂不支持").appFont(11).foregroundStyle(.secondary)
+                                Text("暂不支持").appFont(11).appSecondary()
                             } else if model.sourceURL == channel.url {
                                 Image(systemName: "checkmark").foregroundStyle(.tint)
                             } else {
-                                Image(systemName: "play.fill").appFont(11).foregroundStyle(.secondary)
+                                Image(systemName: "play.fill").appFont(11).appSecondary()
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -302,9 +302,9 @@ private struct ChannelListView: View {
             }
             .overlay {
                 if model.channels.isEmpty {
-                    Text(model.isReady ? "暂无频道" : "正在载入频道…").foregroundStyle(.secondary)
+                    Text(model.isReady ? "暂无频道" : "正在载入频道…").appSecondary()
                 } else if !search.isEmpty && !model.channels.contains(where: { $0.name.localizedCaseInsensitiveContains(search) }) {
-                    Text("没有匹配的频道").foregroundStyle(.secondary)
+                    Text("没有匹配的频道").appSecondary()
                 }
             }
         }
@@ -352,7 +352,7 @@ private struct PlayerSettingsView: View {
                             .monospacedDigit().frame(minWidth: 44 * model.fontScale, alignment: .trailing)
                     }
                     Text("透明度越高，字幕底色越淡。隐藏字幕时仍继续识别。")
-                        .appFont(11).foregroundStyle(.secondary)
+                        .appFont(11).appSecondary()
                 }
                 Section("字幕缓冲") {
                     Toggle("提前缓冲，给字幕处理更多时间", isOn: $model.captionBufferEnabled)
@@ -363,7 +363,7 @@ private struct PlayerSettingsView: View {
                     }
                     .disabled(!model.captionBufferEnabled)
                     Text("默认关闭，保留当前播放方式。开启后画面与原声一起延迟，字幕尽量提前准备；较慢的翻译仍可能晚到。更改在下次载入播放来源时生效。")
-                        .appFont(11).foregroundStyle(.secondary)
+                        .appFont(11).appSecondary()
                 }
                 Section("翻译") {
                     Picker("翻译服务", selection: $model.provider) {
@@ -388,13 +388,13 @@ private struct PlayerSettingsView: View {
                 Section("字幕记录") {
                     if model.history.isEmpty {
                         Text("开始观看并开启字幕后，记录会显示在这里。")
-                            .foregroundStyle(.secondary)
+                            .appSecondary()
                     } else {
                         ForEach(model.history.suffix(20), id: \.id) { entry in
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(entry.time).appFont(11).foregroundStyle(.secondary)
+                                Text(entry.time).appFont(11).appSecondary()
                                 Text(entry.zh)
-                                Text(entry.en).foregroundStyle(.secondary)
+                                Text(entry.en).appSecondary()
                             }
                             .textSelection(.enabled)
                         }

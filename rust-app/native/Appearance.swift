@@ -23,15 +23,27 @@ private struct AppFont: ViewModifier {
     }
 }
 
-struct AppGlassSurface<S: Shape>: View {
+private struct AppSecondaryText: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+    func body(content: Content) -> some View {
+        content.foregroundStyle(colorScheme == .dark ? Color(white: 0.78) : Color(white: 0.25))
+    }
+}
+
+private struct AppGlassSurface<S: Shape>: ViewModifier {
     @Environment(\.glassTransparency) private var transparency
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorScheme) private var colorScheme
     let shape: S
     var prominent = false
-    var body: some View {
-        shape.fill(Color(nsColor: .windowBackgroundColor).opacity(reduceTransparency ? 1 : 1 - transparency / 100))
+
+    func body(content: Content) -> some View {
+        let dark = colorScheme == .dark
+        let minimumOpacity = dark ? 0.65 : 0.85
+        let opacity = reduceTransparency ? 1 : 1 - (transparency / 100) * (1 - minimumOpacity)
+        content
+            .background(shape.fill((dark ? Color.black : Color.white).opacity(opacity)))
             .glassEffect(.clear.tint(prominent ? Color.accentColor.opacity(0.22) : .clear), in: shape)
-            .allowsHitTesting(false)
     }
 }
 
@@ -45,14 +57,15 @@ struct AppGlassButtonStyle: ButtonStyle {
             .padding(.horizontal, 12)
             .padding(.vertical, 7 * scale)
             .frame(minHeight: 32 * scale)
-            .background { AppGlassSurface(shape: Capsule(), prominent: prominent) }
+            .modifier(AppGlassSurface(shape: Capsule(), prominent: prominent))
             .overlay { Capsule().fill(.primary.opacity(configuration.isPressed ? 0.1 : 0)).allowsHitTesting(false) }
-            .foregroundStyle(isEnabled ? AnyShapeStyle(configuration.role == .destructive ? Color.red : Color.primary) : AnyShapeStyle(.secondary))
+            .foregroundStyle(isEnabled ? AnyShapeStyle(configuration.role == .destructive ? Color.red : Color.primary) : AnyShapeStyle(Color.primary.opacity(0.65)))
             .contentShape(Capsule())
     }
 }
 
 extension View {
+    func appSecondary() -> some View { modifier(AppSecondaryText()) }
     func appFont(_ size: CGFloat = 13, weight: Font.Weight = .regular) -> some View {
         modifier(AppFont(size: size, weight: weight))
     }
@@ -62,7 +75,7 @@ extension View {
             .environment(\.glassTransparency, model.glassTransparency)
     }
     func appGlass<S: Shape>(in shape: S) -> some View {
-        background { AppGlassSurface(shape: shape) }
+        modifier(AppGlassSurface(shape: shape))
     }
 
 }
@@ -81,9 +94,9 @@ struct AppearanceSettingsView: View {
                 Slider(value: $model.glassTransparency, in: 0...100, step: 1)
                     .accessibilityLabel("液态玻璃透明度")
                     .disabled(reduceTransparency)
-                HStack { Text("更不透明"); Spacer(); Text("更透明") }.appFont(11).foregroundStyle(.secondary)
+                HStack { Text("更不透明"); Spacer(); Text("更透明") }.appFont(11).appSecondary()
                 if reduceTransparency {
-                    Text("系统已开启“减少透明度”，优先使用不透明背景。").appFont(11).foregroundStyle(.secondary)
+                    Text("系统已开启“减少透明度”，优先使用不透明背景。").appFont(11).appSecondary()
                 }
             }
             VStack(alignment: .leading, spacing: 8) {
@@ -98,14 +111,14 @@ struct AppearanceSettingsView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text("实时预览").appFont(13, weight: .semibold)
                 Text("原声继续播放，字幕清晰可读。")
-                Text("The view follows your preferences.").appFont(11).foregroundStyle(.secondary)
+                Text("The view follows your preferences.").appFont(11).appSecondary()
                 Button("恢复默认外观") { model.glassTransparency = 50; model.fontScale = 1 }
                     .buttonStyle(AppGlassButtonStyle())
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(16)
             .appGlass(in: RoundedRectangle(cornerRadius: 16))
-            Text("透明度只改变玻璃背景，文字保持清晰。系统菜单与对话框遵循 macOS 字号。").appFont(11).foregroundStyle(.secondary)
+            Text("透明度只改变玻璃背景，并保留可读性衬底。文字随深浅外观调整；系统菜单与对话框遵循 macOS 字号。").appFont(11).appSecondary()
         }
     }
 }
