@@ -3,17 +3,19 @@ import Sparkle
 import SwiftUI
 
 @MainActor
-final class AppUpdates: ObservableObject {
+final class AppUpdates: NSObject, ObservableObject {
     static let shared = AppUpdates()
     @Published private(set) var canCheck = false
     @Published private(set) var automaticChecks = true
     @Published private(set) var automaticDownloads = true
     @Published private(set) var lastCheck: Date?
-    private let controller: SPUStandardUpdaterController
+    @Published private(set) var updateVersion: String?
+    private var controller: SPUStandardUpdaterController!
     private var started = false
 
-    private init() {
-        controller = SPUStandardUpdaterController(startingUpdater: false, updaterDelegate: nil, userDriverDelegate: nil)
+    private override init() {
+        super.init()
+        controller = SPUStandardUpdaterController(startingUpdater: false, updaterDelegate: self, userDriverDelegate: nil)
         controller.updater.publisher(for: \.canCheckForUpdates).assign(to: &$canCheck)
         controller.updater.publisher(for: \.automaticallyChecksForUpdates).assign(to: &$automaticChecks)
         controller.updater.publisher(for: \.automaticallyDownloadsUpdates).assign(to: &$automaticDownloads)
@@ -31,10 +33,37 @@ final class AppUpdates: ObservableObject {
     func setAutomaticDownloads(_ enabled: Bool) { controller.updater.automaticallyDownloadsUpdates = enabled }
 }
 
+// Sparkle 的 delegate 回调都发生在主线程，这里只桥接回 @MainActor 状态。
+extension AppUpdates: SPUUpdaterDelegate {
+    nonisolated func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
+        MainActor.assumeIsolated {
+            self.updateVersion = item.displayVersionString
+        }
+    }
+
+    nonisolated func updaterDidNotFindUpdate(_ updater: SPUUpdater) {
+        MainActor.assumeIsolated {
+            self.updateVersion = nil
+        }
+    }
+}
+
+/// 有新版本时显示的蓝色小圆点（类似 Codex 的更新提示）。
+struct UpdateBadgeDot: View {
+    var body: some View {
+        Circle()
+            .fill(Color.blue)
+            .frame(width: 8, height: 8)
+            .overlay(Circle().strokeBorder(Color.white.opacity(0.85), lineWidth: 1.5))
+            .shadow(color: .black.opacity(0.25), radius: 0.5)
+            .accessibilityHidden(true)
+    }
+}
+
 struct UpdateMenuItem: View {
     @ObservedObject private var updates = AppUpdates.shared
     var body: some View {
-        Button("检查更新…") { updates.check() }
+        Button(updates.updateVersion == nil ? "检查更新…" : "有新版本，检查更新…") { updates.check() }
             .disabled(!updates.canCheck)
     }
 }
@@ -46,6 +75,14 @@ struct UpdateSettingsView: View {
     var body: some View {
         Section("软件更新") {
             LabeledContent("当前版本", value: version)
+            if let updateVersion = updates.updateVersion {
+                HStack(spacing: 8) {
+                    UpdateBadgeDot()
+                    Text("有新版本 \(updateVersion) 可用").appFont(13, weight: .medium)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("有新版本可用")
+            }
             Toggle("自动检查 GitHub Release 更新", isOn: Binding(
                 get: { updates.automaticChecks }, set: updates.setAutomaticChecks))
             Toggle("自动下载并在退出时安装更新", isOn: Binding(

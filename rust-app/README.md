@@ -8,13 +8,13 @@ Apple Silicon、macOS 26+。原声播放，本机英语识别与中文翻译；�
 
 [让智能体帮你安装](../AGENT-INSTALL.md)
 
-## v2.2.1
+## v2.2.2
 
-- 液态玻璃背景透明度0–100%，全局字体85–140%，即时保存；系统菜单和系统对话框保持macOS字号。
-- 默认维持现有即时字幕方式。设置可选择额外 3／4／5 秒字幕缓冲，下次载入来源生效；画面与原声一起延迟，字幕处理尽量提前，来不及不阻塞播放。
-- 播放时闲置约 3 秒，底栏状态和操作按钮一起收起；移动鼠标或操作键盘恢复。字幕保持原大小。
-- 点击“字幕”打开回看侧栏；附属菜单保留字幕开关和语言。侧栏支持上滚、复制、导出、回到最新，最多保留本次运行最近 120 条。上滚阅读不被新字幕拉回底部。
-- 菜单和设置有“检查更新”。默认自动检查 GitHub Release、验签、下载，由 Sparkle 完成安装及重启，亦可退出时安装。v2.1.0 及之前需手动安装一次新版。
+- 全新应用图标。
+- 更新提醒小蓝点：检查到新版本时设置齿轮亮起蓝色圆点，设置页与“检查更新”菜单同步提示；更新包后台预下载，确认后自动安装并重启，无需逐步操作。
+- 安装映像改用带背景与 Applications 拖放引导的 DMG，内附安装说明；未做 Developer ID 签名时，首次打开若提示“已损坏”或只有“移到废纸篓”，可执行 `xattr -cr /Applications/视听.app` 后重开。
+- Chrome 扩展补全图标并修复 YouTube 站内跳转误停直播字幕捕获。
+- 沿用 v2.2.1：玻璃透明度与全局字号调节、可选字幕缓冲、闲置收起底栏、字幕回看侧栏、签名自动更新。
 
 ## 边界
 
@@ -26,8 +26,8 @@ Apple Silicon、macOS 26+。原声播放，本机英语识别与中文翻译；�
 
 ## 开发与发布
 
-发布源码以 [v2.2.1标签](https://github.com/nistudyc/shiting/tree/v2.2.1/rust-app) 为准。
+发布源码以 [v2.2.2标签](https://github.com/nistudyc/shiting/tree/v2.2.2/rust-app) 为准。
 
 `node --test tests/*.test.mjs` 检查字幕、音频分段和缓冲逻辑；`cargo test --no-default-features --locked` 检查 Rust 逻辑。打包入口 `sh scripts/package-native.sh`，输出 `dist/release-版本/`。
 
-[安装和更新发布说明](https://github.com/nistudyc/shiting/blob/v2.2.1/rust-app/docs/UPDATES.md) · [改进方案](https://github.com/nistudyc/shiting/blob/v2.2.1/rust-app/docs/DELAYED-PLAYBACK-PLAN-20260919.md)
+[安装和更新发布说明](https://github.com/nistudyc/shiting/blob/v2.2.2/rust-app/docs/UPDATES.md) · [改进方案](https://github.com/nistudyc/shiting/blob/v2.2.2/rust-app/docs/DELAYED-PLAYBACK-PLAN-20260919.md)

@@ -10,6 +10,7 @@ private enum PlayerLayout {
 
 struct NativePlayerView: View {
     @ObservedObject var model: PlayerModel
+    @ObservedObject private var updates = AppUpdates.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var controlsCollapsed = false
     @State private var lastActivity = Date()
@@ -116,7 +117,7 @@ struct NativePlayerView: View {
                 .popover(isPresented: $model.channelPickerOpen, arrowEdge: .bottom) {
                     ChannelPickerView(model: model).appAppearance(model)
                 }
-                GlassIconButton(title: "设置", symbol: "gearshape") { model.settingsOpen = true }
+                GlassIconButton(title: updates.updateVersion == nil ? "设置" : "设置（有新版本）", symbol: "gearshape", showsUpdateDot: updates.updateVersion != nil) { model.settingsOpen = true }
                     .keyboardShortcut(",", modifiers: .command)
             }
             .buttonStyle(AppGlassButtonStyle())
@@ -187,11 +188,19 @@ private struct GlassIconButton: View {
     @Environment(\.appFontScale) private var fontScale
     let title: String
     let symbol: String
+    var showsUpdateDot = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: symbol).frame(width: 16 * fontScale, height: 20 * fontScale)
+            Image(systemName: symbol)
+                .frame(width: 16 * fontScale, height: 20 * fontScale)
+                .overlay(alignment: .topTrailing) {
+                    if showsUpdateDot {
+                        UpdateBadgeDot()
+                            .offset(x: 4, y: -2)
+                    }
+                }
         }
         .buttonStyle(AppGlassButtonStyle())
         .help(title)

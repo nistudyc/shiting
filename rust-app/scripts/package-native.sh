@@ -7,7 +7,16 @@ sparkle=runtime/Sparkle-2.10.0
 sh scripts/prepare-sparkle.sh
 public_key=$(cat signing/sparkle-public-key.txt)
 [ -n "$public_key" ] || { echo '缺少更新公钥' >&2; exit 1; }
-cargo build --release --no-default-features --locked --bin shiting
+# Rust 服务：本机装有 Cargo 时从源码构建；否则复用预构建产物
+# （Rust 源码自 v2.2.1 起未改动，target/release/shiting 与源码构建等价）
+if command -v cargo >/dev/null 2>&1; then
+  cargo build --release --no-default-features --locked --bin shiting
+elif [ -x target/release/shiting ]; then
+  echo "未安装 Rust，使用预构建的 target/release/shiting"
+else
+  echo "缺少 Rust 工具链，也没有预构建的 target/release/shiting" >&2
+  exit 1
+fi
 output="dist/release-$version"
 app="$output/视听.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Frameworks" "$app/Contents/Resources"

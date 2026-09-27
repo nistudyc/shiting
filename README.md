@@ -8,7 +8,7 @@ macOS 原生 Liquid Glass 视频播放器，支持 HLS 直播、本机英文语�
 
 - **系统要求：Apple Silicon（M 系列）Mac，macOS 26 或更新版本。**
 - 打开 DMG，将「视听.app」拖入「应用程序」；替换前退出旧版，设置与模型缓存可保留。
-- 安装包采用本机临时签名，尚未进行 Apple Developer ID 签名或公证，其他 Mac 可能显示安全提示。
+- 安装包采用本机临时签名，尚未进行 Apple Developer ID 签名或公证；首次打开若提示“已损坏，无法打开”或只有“移到废纸篓”选项，在终端执行 `xattr -cr /Applications/视听.app` 后重新打开即可。
 - 安装包不含模型、API 密钥和观看记录；首次使用字幕需联网下载模型，之后复用本机缓存。
 
 ## 让 Codex / 豆包工作帮你安装
@@ -18,6 +18,12 @@ macOS 原生 Liquid Glass 视频播放器，支持 HLS 直播、本机英文语�
 > 请按照 https://github.com/nistudyc/shiting/blob/main/AGENT-INSTALL.md 帮我安装或升级最新版视听，保留现有设置和模型缓存，完成后打开应用，不播放媒体；需要系统密码时让我在系统窗口自行输入。
 
 [智能体安装指引](AGENT-INSTALL.md) 包含下载、校验、旧版替换与最小完成检查。
+
+## v2.2.2 更新
+
+- 全新应用图标；有新版本时设置齿轮出现蓝色小点提醒，确认后自动完成安装并重启。
+- 安装映像升级为带背景与拖放引导的 DMG，并附安装说明（含首次打开安全提示的处理命令）。
+- Chrome 扩展补全图标，修复 YouTube 站内跳转误停直播字幕捕获。
 
 ## v2.2.1 更新
 
@@ -55,9 +61,9 @@ macOS 原生 Liquid Glass 视频播放器，支持 HLS 直播、本机英文语�
 
 ## 源码构建
 
-发布源码以 [v2.2.1 标签](https://github.com/nistudyc/shiting/tree/v2.2.1/rust-app) 为准，开发或复现发布包请先检出对应标签。仓库根目录的 Electron 实现保留作为历史版本。
+发布源码以 [v2.2.2 标签](https://github.com/nistudyc/shiting/tree/v2.2.2/rust-app) 为准，开发或复现发布包请先检出对应标签。仓库根目录的 Electron 实现保留作为历史版本。
 
-发布构建说明见 [安装与更新文档](https://github.com/nistudyc/shiting/blob/v2.2.1/rust-app/docs/UPDATES.md)。使用 Rust、Node.js、macOS 26.5 SDK，以及发布者自己的更新签名凭据。普通安装用户不需要这些工具或密钥。
+发布构建说明见 [安装与更新文档](https://github.com/nistudyc/shiting/blob/v2.2.2/rust-app/docs/UPDATES.md)。使用 Rust、Node.js、macOS 26.5 SDK，以及发布者自己的更新签名凭据。普通安装用户不需要这些工具或密钥。
 
 打包入口为 `rust-app/scripts/package-native.sh`，产物位于 `rust-app/dist/release-<版本>/`，包括 DMG、更新ZIP、签名appcast和校验清单。
 
