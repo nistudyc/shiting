@@ -99,11 +99,16 @@ impl Engine {
             .tokenizer
             .encode(text, true)
             .map_err(|error| anyhow::anyhow!("encode: {error}"))?;
-        ensure!(
-            encoding.len() <= 512,
-            "translation input exceeds 512 tokens"
-        );
-        let ids: Vec<i64> = encoding.get_ids().iter().copied().map(i64::from).collect();
+        let mut ids: Vec<u32> = encoding.get_ids().to_vec();
+        if ids.len() > 512 {
+            // 超长字幕截取结尾翻译（结尾是最新语音），
+            // 避免单条过长直接报错导致中文翻译长期暂停。
+            let eos = ids.pop().unwrap_or(0);
+            let start = ids.len().saturating_sub(509);
+            ids = ids[start..].to_vec();
+            ids.push(eos);
+        }
+        let ids: Vec<i64> = ids.iter().copied().map(i64::from).collect();
         let mask = Tensor::from_array(([1, ids.len()], vec![1_i64; ids.len()]))?.into_dyn();
         let input = Tensor::from_array(([1, ids.len()], ids))?;
         let output = model.encoder.run(vec![

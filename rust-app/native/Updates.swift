@@ -46,6 +46,17 @@ extension AppUpdates: SPUUpdaterDelegate {
             self.updateVersion = nil
         }
     }
+
+    // 用户选择“安装并重启”后正常退出可能被 WebView 阻塞（尤其全屏直播时），
+    // 导致安装器等不到应用退出。这里在 1 秒后兜底：先结束本机播放服务，
+    // 再立即退出进程，把安装与重启交给已启动的 Sparkle 安装器。
+    nonisolated func updater(_ updater: SPUUpdater, willInstallUpdate item: SUAppcastItem) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1))
+            PlayerAppDelegate.player?.stop()
+            exit(0)
+        }
+    }
 }
 
 /// 有新版本时显示的蓝色小圆点（类似 Codex 的更新提示）。

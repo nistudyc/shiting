@@ -43,7 +43,7 @@ if (!crypto.verify(null, archiveData, verifyKey, archiveSig)) throw new Error('�
 const length = statSync(file).size;
 
 // 2) 组装 feed（头部警告注释与尾部签名注释的字节布局须与 Sparkle 工具一致）
-const description = '全新应用图标；有新版本时设置齿轮显示蓝色小点提醒，更新确认后自动安装并重启；安装映像改用带背景引导的 DMG。详见 GitHub Release。';
+const description = '频道列表精简为 BBC News HD；超长字幕不再中断中文翻译；更新重启改为立即安装并重启。详见 GitHub Release。';
 const rss = `<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
 <channel><title>视听更新</title><link>https://github.com/nistudyc/shiting/releases</link><language>zh-cn</language>
 <item><title>视听 ${version}</title><pubDate>${new Date().toUTCString()}</pubDate>
